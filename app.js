@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
 } else {
   revealDateText.textContent = revealDate.toDateString();
 }
-
+ 
 
   // --- COUNTDOWN FUNCTION ---
   function updateCountdown() {
@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const diff = revealDate - now;
 
     if (diff <= 0) {
-      openCapsule();
+       // Keep locked until reveal day – nothing loads automatically
       return;
     }
 
