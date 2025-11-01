@@ -12,9 +12,12 @@ document.addEventListener("DOMContentLoaded", () => {
     secs: document.getElementById("cd-secs"),
   };
 
-  if (revealDateText) {
-    revealDateText.textContent = revealDate.toDateString();
-  }
+  if (!revealDateText) {
+  console.warn("⚠️ reveal-date-text element not found — skipping date display.");
+} else {
+  revealDateText.textContent = revealDate.toDateString();
+}
+
 
   // --- COUNTDOWN FUNCTION ---
   function updateCountdown() {
