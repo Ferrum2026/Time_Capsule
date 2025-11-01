@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
   console.log("🧭 Time Capsule website loaded.");
 
   // --- SET REVEAL DATE ---
-  const revealDate = new Date("2026-03-15T00:00:00"); // change this to your chosen reveal date
+  const revealDate = new Date("2025-11-01T00:00:00"); // change this to your chosen reveal date
   const revealDateText = document.getElementById("reveal-date-text");
   const countdownElems = {
     days: document.getElementById("cd-days"),
