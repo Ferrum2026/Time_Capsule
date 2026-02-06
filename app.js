@@ -13,27 +13,35 @@ document.addEventListener("DOMContentLoaded", () => {
     secs: document.getElementById("cd-secs"),
   };
 
-  const submitUrl = appConfig.googleFormUrl || "#";
+  const submitUrl = (appConfig.googleFormUrl || "").trim();
   const submitLink = document.getElementById("submit-link");
   const ctaSubmit = document.getElementById("cta-submit");
 
   [submitLink, ctaSubmit].forEach((el) => {
     if (el) {
-      el.href = submitUrl;
-      if (submitUrl === "#") {
+      if (submitUrl && /^https?:\/\//i.test(submitUrl)) {
+        el.href = submitUrl;
+      } else {
+        el.href = "#";
         el.classList.add("disabled");
         el.removeAttribute("target");
+        el.setAttribute("title", "Set your Google Form link in firebase-config.js");
       }
     }
   });
 
   const revealDateTextInline = document.getElementById("reveal-date-text-inline");
+  const revealDateTime = revealDate.getTime();
+  const revealDateLabel = Number.isNaN(revealDateTime)
+    ? "Set reveal date in firebase-config.js"
+    : revealDate.toUTCString();
+
   if (!revealDateText) {
     console.warn("⚠️ reveal-date-text element not found — skipping date display.");
   } else {
-    revealDateText.textContent = revealDate.toUTCString();
+    revealDateText.textContent = revealDateLabel;
   }
-  if (revealDateTextInline) revealDateTextInline.textContent = revealDate.toUTCString();
+  if (revealDateTextInline) revealDateTextInline.textContent = revealDateLabel;
 
   const lockSection = document.getElementById("capsule-lock");
   const capsuleContents = document.getElementById("capsule-contents");
@@ -53,7 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const now = new Date();
     const diff = revealDate - now;
 
-    if (diff <= 0) {
+    if (Number.isNaN(diff) || diff <= 0) {
       Object.values(countdownElems).forEach((el) => {
         if (el) el.textContent = "00";
       });

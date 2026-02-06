@@ -16,8 +16,10 @@ This project now supports:
 ## 1) Configure the website
 
 Edit `firebase-config.js`:
-- `googleFormUrl`: paste your public Google Form URL.
-- `revealIso`: set the reveal date/time in UTC.
+- `googleFormUrl`: paste your public Google Form URL (must start with `https://`).
+- `revealIso`: set the reveal date/time in UTC (ex: `2026-06-01T00:00:00Z`).
+
+If `googleFormUrl` is empty/invalid, the “Send Your Memory” buttons are disabled with a tooltip reminder. If `revealIso` is invalid, the capsule opens immediately and the date label will prompt you to set it.
 
 Example:
 ```js
