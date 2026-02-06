@@ -1,6 +1,4 @@
 // firebase-config.js
-// Your Firebase Realtime Database connection
-
 const firebaseConfig = {
   apiKey: "AIzaSyB9ADMsJMGKO9jvUxpDdclVAHy4RZmileQ",
   authDomain: "batchcapsule.firebaseapp.com",
@@ -11,5 +9,10 @@ const firebaseConfig = {
   appId: "1:660821902563:web:980ba4ae153fef1ce1f1d6"
 };
 
-// Make config globally available
+const appConfig = {
+  googleFormUrl: "https://docs.google.com/forms/d/e/1FAIpQLSdxraYeyrpC4zMC-EtXQg8xauGSrtsys34AU_bLf7MwOcB1vg/viewform?usp=header",
+  revealIso: "2026-01-01T12:00:00Z"
+};
+
 window.__FIREBASE_CONFIG = firebaseConfig;
+window.__APP_CONFIG = appConfig;
