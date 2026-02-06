@@ -2,9 +2,19 @@
 document.addEventListener("DOMContentLoaded", () => {
   console.log("🧭 Time Capsule website loaded.");
 
-  const revealDate = new Date("2025-11-01T00:00:00");
+  const appConfig = window.__APP_CONFIG || {};
+  const revealDate = appConfig.revealIso ? new Date(appConfig.revealIso) : new Date();
+
   const revealDateText = document.getElementById("reveal-date-text");
   const lockStatus = document.getElementById("lock-status");
+  const lockSection = document.getElementById("capsule-lock");
+  const capsuleStateTitle = document.getElementById("capsule-state-title");
+  const entryListTitle = document.getElementById("entry-list-title");
+  const entryDetailTitle = document.getElementById("entry-detail-title");
+  const entriesList = document.getElementById("entries-list");
+  const entryDetail = document.getElementById("entry-detail");
+  const revealSequence = document.getElementById("reveal-sequence");
+
   const countdownElems = {
     days: document.getElementById("cd-days"),
     hours: document.getElementById("cd-hours"),
@@ -12,24 +22,205 @@ document.addEventListener("DOMContentLoaded", () => {
     secs: document.getElementById("cd-secs"),
   };
 
-  const lockSection = document.getElementById("capsule-lock");
-  const capsuleContents = document.getElementById("capsule-contents");
-  const entriesContainer = document.getElementById("entries");
-  const revealSequence = document.getElementById("reveal-sequence");
   let revealStarted = false;
+  let capsuleOpened = false;
+  let entries = [];
+  let selectedEntryId = null;
 
   if (revealDateText) {
     revealDateText.textContent = revealDate.toDateString();
   }
 
+  function getDisplayName(entry, index) {
+    const trimmedName = (entry.name || "").trim();
+    if (capsuleOpened && trimmedName) return trimmedName;
+    return `Anonymous ${index + 1}`;
+  }
+
+  function normalizeAttachments(entry) {
+    const knownUrls = [
+      entry.fileUrl,
+      entry.photoUrl,
+      entry.imageUrl,
+      entry.videoUrl,
+      entry.audioUrl,
+    ].filter(Boolean);
+
+    const fromFiles = Array.isArray(entry.files)
+      ? entry.files
+      : entry.files && typeof entry.files === "object"
+        ? Object.values(entry.files)
+        : [];
+
+    const collected = [...knownUrls];
+
+    fromFiles.forEach((file) => {
+      if (!file) return;
+      if (typeof file === "string") {
+        collected.push(file);
+        return;
+      }
+      if (typeof file === "object") {
+        if (file.url) collected.push(file.url);
+        else if (file.downloadURL) collected.push(file.downloadURL);
+      }
+    });
+
+    return [...new Set(collected)].map((url) => ({
+      url,
+      lowerUrl: url.toLowerCase(),
+    }));
+  }
+
+  function renderAttachment(target, attachment) {
+    const { url, lowerUrl } = attachment;
+
+    if (lowerUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = "Memory attachment";
+      img.loading = "lazy";
+      target.appendChild(img);
+      return;
+    }
+
+    if (lowerUrl.match(/\.(mp4|mov|avi|webm|m4v)$/i)) {
+      const video = document.createElement("video");
+      video.src = url;
+      video.controls = true;
+      video.preload = "metadata";
+      target.appendChild(video);
+      return;
+    }
+
+    if (lowerUrl.match(/\.(mp3|wav|ogg|m4a|aac)$/i)) {
+      const audio = document.createElement("audio");
+      audio.src = url;
+      audio.controls = true;
+      audio.preload = "metadata";
+      target.appendChild(audio);
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Open attached file";
+    link.className = "attachment-link";
+    target.appendChild(link);
+  }
+
+  function renderSelectedEntry() {
+    if (!entryDetail || !entryDetailTitle) return;
+
+    if (!entries.length) {
+      entryDetailTitle.textContent = capsuleOpened ? "Opened vault" : "Vault locked";
+      entryDetail.innerHTML = "<p>No entries yet — the capsule is still being filled.</p>";
+      return;
+    }
+
+    const selectedEntry = entries.find((entry) => entry.id === selectedEntryId) || entries[0];
+    selectedEntryId = selectedEntry.id;
+
+    const selectedIndex = entries.findIndex((entry) => entry.id === selectedEntryId);
+    const displayName = getDisplayName(selectedEntry, selectedIndex);
+
+    entryDetailTitle.textContent = displayName;
+    entryDetail.innerHTML = "";
+
+    const meta = document.createElement("p");
+    meta.className = "entry-meta";
+    meta.textContent = selectedEntry.timestamp || "No timestamp";
+    entryDetail.appendChild(meta);
+
+    if (!capsuleOpened) {
+      const lockedMsg = document.createElement("p");
+      lockedMsg.textContent = "Identity, message, and files remain sealed until the reveal moment.";
+      entryDetail.appendChild(lockedMsg);
+
+      const attachments = normalizeAttachments(selectedEntry);
+      if (attachments.length) {
+        const attachmentCount = document.createElement("p");
+        attachmentCount.className = "muted";
+        attachmentCount.textContent = `${attachments.length} attachment(s) sealed in this memory.`;
+        entryDetail.appendChild(attachmentCount);
+      }
+      return;
+    }
+
+    const message = document.createElement("p");
+    message.textContent = selectedEntry.message || "No message provided.";
+    entryDetail.appendChild(message);
+
+    const attachments = normalizeAttachments(selectedEntry);
+    if (attachments.length) {
+      const mediaWrap = document.createElement("div");
+      mediaWrap.className = "entry-media";
+      attachments.forEach((attachment) => renderAttachment(mediaWrap, attachment));
+      entryDetail.appendChild(mediaWrap);
+    }
+  }
+
+  function renderEntriesList() {
+    if (!entriesList || !entryListTitle) return;
+
+    entriesList.innerHTML = "";
+
+    entryListTitle.textContent = capsuleOpened ? "Contributors (revealed)" : "Contributors (anonymous)";
+
+    if (!entries.length) {
+      entriesList.innerHTML = "<p>No contributors yet.</p>";
+      return;
+    }
+
+    entries.forEach((entry, index) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "entry-list-item";
+      if (entry.id === selectedEntryId) btn.classList.add("active");
+
+      const name = document.createElement("strong");
+      name.textContent = getDisplayName(entry, index);
+
+      const time = document.createElement("span");
+      time.textContent = entry.timestamp || "No timestamp";
+
+      btn.appendChild(name);
+      btn.appendChild(time);
+
+      btn.addEventListener("click", () => {
+        selectedEntryId = entry.id;
+        renderEntriesList();
+        renderSelectedEntry();
+      });
+
+      entriesList.appendChild(btn);
+    });
+  }
+
+  function syncVaultStateUI() {
+    if (capsuleOpened) {
+      if (lockSection) lockSection.classList.add("hidden");
+      if (capsuleStateTitle) capsuleStateTitle.textContent = "Opened Capsule — Names and Memories Revealed";
+      if (lockStatus) lockStatus.textContent = "The seal is breaking... Preparing the vault reveal.";
+      return;
+    }
+
+    if (lockSection) lockSection.classList.remove("hidden");
+    if (capsuleStateTitle) capsuleStateTitle.textContent = "Sealed Capsule — Anonymous Directory";
+    if (lockStatus) lockStatus.textContent = "The contents are stored privately. They will be opened on the reveal date.";
+  }
+
   function openCapsule() {
-    if (lockSection) lockSection.classList.add("hidden");
-    if (capsuleContents) capsuleContents.classList.remove("hidden");
-    loadCapsuleEntries();
+    capsuleOpened = true;
+    syncVaultStateUI();
+    renderEntriesList();
+    renderSelectedEntry();
   }
 
   function startRevealSequence() {
-    if (revealStarted) return;
+    if (revealStarted || capsuleOpened) return;
     revealStarted = true;
 
     if (lockStatus) {
@@ -62,7 +253,7 @@ document.addEventListener("DOMContentLoaded", () => {
       Object.values(countdownElems).forEach((el) => {
         if (el) el.textContent = "00";
       });
-      startRevealSequence();
+      if (!capsuleOpened) startRevealSequence();
       return;
     }
 
@@ -77,93 +268,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (countdownElems.secs) countdownElems.secs.textContent = secs.toString().padStart(2, "0");
   }
 
-  setInterval(updateCountdown, 1000);
-  updateCountdown();
-
-  function createEntryCard(entry) {
-    const div = document.createElement("div");
-    div.className = "entry";
-
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    meta.textContent = entry.timestamp || "No timestamp";
-
-    const message = document.createElement("p");
-    message.textContent = entry.message || "";
-
-    div.appendChild(meta);
-    div.appendChild(message);
-
-    if (entry.fileUrl) {
-      if (entry.fileUrl.match(/\.(jpg|jpeg|png|gif)$/i)) {
-        const img = document.createElement("img");
-        img.src = entry.fileUrl;
-        img.alt = `${entry.name || "Anonymous"} memory image`;
-        div.appendChild(img);
-      } else if (entry.fileUrl.match(/\.(mp4|mov|avi)$/i)) {
-        const vid = document.createElement("video");
-        vid.src = entry.fileUrl;
-        vid.controls = true;
-        div.appendChild(vid);
-      } else if (entry.fileUrl.match(/\.(mp3|wav|ogg)$/i)) {
-        const aud = document.createElement("audio");
-        aud.src = entry.fileUrl;
-        aud.controls = true;
-        div.appendChild(aud);
-      }
-    }
-
-    return div;
-  }
-
-  function renderGroupedEntries(entries) {
-    if (!entriesContainer) return;
-    entriesContainer.innerHTML = "";
-
-    if (!entries.length) {
-      entriesContainer.innerHTML = "<p>No entries yet — the capsule is still being filled.</p>";
-      return;
-    }
-
-    const grouped = entries.reduce((acc, entry) => {
-      const name = (entry.name || "Anonymous").trim() || "Anonymous";
-      if (!acc[name]) acc[name] = [];
-      acc[name].push(entry);
-      return acc;
-    }, {});
-
-    const sortedNames = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
-
-    sortedNames.forEach((name) => {
-      const section = document.createElement("section");
-      section.className = "name-group";
-
-      const heading = document.createElement("h5");
-      heading.className = "name-group-title";
-      heading.textContent = name;
-
-      const grid = document.createElement("div");
-      grid.className = "name-group-grid";
-
-      grouped[name].forEach((entry) => {
-        grid.appendChild(createEntryCard(entry));
-      });
-
-      section.appendChild(heading);
-      section.appendChild(grid);
-      entriesContainer.appendChild(section);
-    });
-  }
-
   function loadCapsuleEntries() {
     const firebaseConfig = window.__FIREBASE_CONFIG;
     if (!firebaseConfig) {
       console.error("Firebase config not loaded.");
+      if (entriesList) entriesList.innerHTML = "<p>Firebase config missing.</p>";
       return;
     }
 
-    if (!entriesContainer) return;
-    entriesContainer.innerHTML = "<p>Loading capsule entries...</p>";
+    if (entriesList) entriesList.innerHTML = "<p>Loading contributors...</p>";
+    if (entryDetail) entryDetail.innerHTML = "<p>Loading selected entry...</p>";
 
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
@@ -175,12 +289,39 @@ document.addEventListener("DOMContentLoaded", () => {
     ref.once("value")
       .then((snapshot) => {
         const data = snapshot.val();
-        const entries = data ? Object.values(data) : [];
-        renderGroupedEntries(entries);
+        entries = data
+          ? Object.entries(data).map(([id, value]) => ({ id, ...(value || {}) }))
+          : [];
+
+        entries.sort((a, b) => {
+          const aTime = new Date(a.timestamp || 0).getTime();
+          const bTime = new Date(b.timestamp || 0).getTime();
+          return bTime - aTime;
+        });
+
+        if (entries.length && !selectedEntryId) {
+          selectedEntryId = entries[0].id;
+        }
+
+        renderEntriesList();
+        renderSelectedEntry();
       })
       .catch((err) => {
         console.error("Error loading entries:", err);
-        entriesContainer.innerHTML = "<p>Error loading capsule contents.</p>";
+        if (entriesList) entriesList.innerHTML = "<p>Error loading contributors.</p>";
+        if (entryDetail) entryDetail.innerHTML = "<p>Error loading capsule contents.</p>";
       });
+  }
+
+  capsuleOpened = new Date() >= revealDate;
+  syncVaultStateUI();
+  loadCapsuleEntries();
+
+  setInterval(updateCountdown, 1000);
+  updateCountdown();
+
+  if (capsuleOpened) {
+    renderEntriesList();
+    renderSelectedEntry();
   }
 });

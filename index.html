@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Batch 2025 Digital Time Capsule</title>
+  <title>Batch 2026 Digital Time Capsule</title>
   <link rel="stylesheet" href="main.css" />
   <meta name="theme-color" content="#0b0b0b" />
 </head>
@@ -19,9 +19,9 @@
 
   <header class="header">
     <div class="brand">
-      <img src="logo.png" alt="logo" class="logo" />
+      <img id="batch-logo" src="assets/batch-logo-2026.svg" alt="Batch 2026 logo" class="logo" />
       <div>
-        <h1>Batch 2025 Digital Time Capsule</h1>
+        <h1>Batch 2026 Digital Time Capsule</h1>
         <p>Sealed memories • Reopen for the future</p>
       </div>
     </div>
@@ -46,7 +46,7 @@
         </div>
       </div>
       <div class="hero-visual">
-        <div class="capsule-visual" id="capsule-visual">🪐</div>
+        <img id="batch-banner" class="capsule-visual banner-visual" src="assets/batch-banner-2026.svg" alt="Batch 2026 banner" />
       </div>
     </section>
 
@@ -67,12 +67,22 @@
           <div class="lock-icon">🔒</div>
           <h4>Capsule is sealed</h4>
           <p id="lock-status">The contents are stored privately. They will be opened on the reveal date.</p>
+          <p class="muted">Contributors are visible as anonymous while the vault is sealed.</p>
         </div>
       </div>
 
-      <div id="capsule-contents" class="capsule-contents hidden">
-        <h4>Opened Capsule — Entries</h4>
-        <div id="entries" class="entries-grid"></div>
+      <div id="capsule-contents" class="capsule-contents">
+        <h4 id="capsule-state-title">Sealed Capsule — Anonymous Directory</h4>
+        <div class="capsule-browser">
+          <aside class="entry-list-panel">
+            <h5 id="entry-list-title">Contributors</h5>
+            <div id="entries-list" class="entries-list"></div>
+          </aside>
+          <article class="entry-detail-panel">
+            <h5 id="entry-detail-title">Vault locked</h5>
+            <div id="entry-detail" class="entry-detail-body"></div>
+          </article>
+        </div>
       </div>
     </section>
 
@@ -80,7 +90,7 @@
       <h3>Batch Film</h3>
       <p>Official batch film (kept outside the sealed capsule).</p>
       <div class="film-placeholder">
-        <img src="placeholder.png" alt="film placeholder" />
+        <img src="assets/batch-banner-2026.svg" alt="Batch 2026 film placeholder banner" />
         <p class="muted">Film will be embedded here when ready.</p>
       </div>
     </section>
@@ -106,5 +116,4 @@
   <script src="app.js"></script>
 </body>
 </html>
-
 
