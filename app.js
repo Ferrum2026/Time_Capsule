@@ -1,9 +1,10 @@
 // app.js
+
 document.addEventListener("DOMContentLoaded", () => {
   console.log("🧭 Time Capsule website loaded.");
 
-  // --- SET REVEAL DATE ---
-  const revealDate = new Date("2025-11-01T00:00:00"); // change this to your chosen reveal date
+  const appConfig = window.__APP_CONFIG || {};
+  const revealDate = new Date(appConfig.revealIso || "2025-11-01T00:00:00Z");
   const revealDateText = document.getElementById("reveal-date-text");
   const countdownElems = {
     days: document.getElementById("cd-days"),
@@ -12,20 +13,51 @@ document.addEventListener("DOMContentLoaded", () => {
     secs: document.getElementById("cd-secs"),
   };
 
-  if (!revealDateText) {
-  console.warn("⚠️ reveal-date-text element not found — skipping date display.");
-} else {
-  revealDateText.textContent = revealDate.toDateString();
-}
- 
+  const submitUrl = appConfig.googleFormUrl || "#";
+  const submitLink = document.getElementById("submit-link");
+  const ctaSubmit = document.getElementById("cta-submit");
 
-  // --- COUNTDOWN FUNCTION ---
+  [submitLink, ctaSubmit].forEach((el) => {
+    if (el) {
+      el.href = submitUrl;
+      if (submitUrl === "#") {
+        el.classList.add("disabled");
+        el.removeAttribute("target");
+      }
+    }
+  });
+
+  const revealDateTextInline = document.getElementById("reveal-date-text-inline");
+  if (!revealDateText) {
+    console.warn("⚠️ reveal-date-text element not found — skipping date display.");
+  } else {
+    revealDateText.textContent = revealDate.toUTCString();
+  }
+  if (revealDateTextInline) revealDateTextInline.textContent = revealDate.toUTCString();
+
+  const lockSection = document.getElementById("capsule-lock");
+  const capsuleContents = document.getElementById("capsule-contents");
+
+  function openCapsule() {
+    if (lockSection) lockSection.classList.add("hidden");
+    if (capsuleContents) capsuleContents.classList.remove("hidden");
+    loadCapsuleEntries();
+  }
+
+  function keepLocked() {
+    if (lockSection) lockSection.classList.remove("hidden");
+    if (capsuleContents) capsuleContents.classList.add("hidden");
+  }
+
   function updateCountdown() {
     const now = new Date();
     const diff = revealDate - now;
 
     if (diff <= 0) {
-       // Keep locked until reveal day – nothing loads automatically
+      Object.values(countdownElems).forEach((el) => {
+        if (el) el.textContent = "00";
+      });
+      openCapsule();
       return;
     }
 
@@ -34,34 +66,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const mins = Math.floor((diff / (1000 * 60)) % 60);
     const secs = Math.floor((diff / 1000) % 60);
 
-    countdownElems.days.textContent = days.toString().padStart(2, "0");
-    countdownElems.hours.textContent = hours.toString().padStart(2, "0");
-    countdownElems.mins.textContent = mins.toString().padStart(2, "0");
-    countdownElems.secs.textContent = secs.toString().padStart(2, "0");
+    if (countdownElems.days) countdownElems.days.textContent = days.toString().padStart(2, "0");
+    if (countdownElems.hours) countdownElems.hours.textContent = hours.toString().padStart(2, "0");
+    if (countdownElems.mins) countdownElems.mins.textContent = mins.toString().padStart(2, "0");
+    if (countdownElems.secs) countdownElems.secs.textContent = secs.toString().padStart(2, "0");
+
+    keepLocked();
   }
 
   setInterval(updateCountdown, 1000);
   updateCountdown();
 
-  // --- CAPSULE LOGIC ---
-  const lockSection = document.getElementById("capsule-lock");
-  const capsuleContents = document.getElementById("capsule-contents");
-  const forceOpenBtn = document.getElementById("force-open");
-
-  function openCapsule() {
-    if (lockSection) lockSection.classList.add("hidden");
-    if (capsuleContents) capsuleContents.classList.remove("hidden");
-    loadCapsuleEntries();
-  }
-
-  if (forceOpenBtn) {
-    forceOpenBtn.addEventListener("click", () => {
-      openCapsule();
-      console.log("🔓 Capsule manually opened by admin.");
-    });
-  }
-
-  // --- LOAD CAPSULE ENTRIES FROM FIREBASE ---
   function loadCapsuleEntries() {
     const firebaseConfig = window.__FIREBASE_CONFIG;
     if (!firebaseConfig) {
@@ -69,7 +84,10 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const app = firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+
     const db = firebase.database();
     const ref = db.ref("capsuleEntries");
 
@@ -88,41 +106,49 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
 
-        Object.values(data).forEach((entry) => {
-          const div = document.createElement("div");
-          div.className = "entry";
+        Object.values(data)
+          .sort((a, b) => (a.submittedAt || "").localeCompare(b.submittedAt || ""))
+          .forEach((entry) => {
+            const div = document.createElement("article");
+            div.className = "entry";
 
-          const meta = document.createElement("div");
-          meta.className = "meta";
-          meta.textContent = `${entry.name || "Anonymous"} — ${entry.timestamp || ""}`;
+            const meta = document.createElement("div");
+            meta.className = "meta";
+            meta.textContent = `${entry.name || "Anonymous"} — ${entry.submittedAt || ""}`;
 
-          const message = document.createElement("p");
-          message.textContent = entry.message || "";
+            const message = document.createElement("p");
+            message.textContent = entry.message || "";
 
-          div.appendChild(meta);
-          div.appendChild(message);
+            div.appendChild(meta);
+            div.appendChild(message);
 
-          // Optional media file
-          if (entry.fileUrl) {
-            if (entry.fileUrl.match(/\.(jpg|jpeg|png|gif)$/i)) {
-              const img = document.createElement("img");
-              img.src = entry.fileUrl;
-              div.appendChild(img);
-            } else if (entry.fileUrl.match(/\.(mp4|mov|avi)$/i)) {
-              const vid = document.createElement("video");
-              vid.src = entry.fileUrl;
-              vid.controls = true;
-              div.appendChild(vid);
-            } else if (entry.fileUrl.match(/\.(mp3|wav|ogg)$/i)) {
-              const aud = document.createElement("audio");
-              aud.src = entry.fileUrl;
-              aud.controls = true;
-              div.appendChild(aud);
+            if (entry.fileUrl) {
+              if (entry.fileUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+                const img = document.createElement("img");
+                img.src = entry.fileUrl;
+                img.alt = "Capsule entry media";
+                div.appendChild(img);
+              } else if (entry.fileUrl.match(/\.(mp4|mov|avi|webm)$/i)) {
+                const vid = document.createElement("video");
+                vid.src = entry.fileUrl;
+                vid.controls = true;
+                div.appendChild(vid);
+              } else if (entry.fileUrl.match(/\.(mp3|wav|ogg|m4a)$/i)) {
+                const aud = document.createElement("audio");
+                aud.src = entry.fileUrl;
+                aud.controls = true;
+                div.appendChild(aud);
+              } else {
+                const link = document.createElement("a");
+                link.href = entry.fileUrl;
+                link.textContent = "Attached file";
+                link.target = "_blank";
+                div.appendChild(link);
+              }
             }
-          }
 
-          entriesContainer.appendChild(div);
-        });
+            entriesContainer.appendChild(div);
+          });
       })
       .catch((err) => {
         console.error("Error loading entries:", err);

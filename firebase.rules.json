@@ -1,0 +1,13 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "capsuleEntries": {
+      ".read": "now >= 1761955200000",
+      "$entryId": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['name','message','submittedAt'])"
+      }
+    }
+  }
+}

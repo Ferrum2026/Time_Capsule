@@ -1,55 +1,70 @@
 # Batch Time Capsule (static site)
 
-Dark-futuristic single-page site that reads entries from Firebase Realtime Database.
+This project now supports:
+- publishing a Google Form for submissions,
+- automatically pushing each form response to Firebase Realtime Database,
+- keeping capsule entries **locked** on the website until your reveal date.
 
 ## Files
-- index.html
-- style/main.css
-- scripts/firebase-config.js (replace with your Firebase config)
-- scripts/app.js
-- google-apps-script.js (paste into Google Sheets > Apps Script for the form)
+- `index.html`
+- `main.css`
+- `firebase-config.js`
+- `app.js`
+- `google-apps-script.js` (copy into Google Apps Script)
+- `firebase.rules.json` (sample rules with time-based read lock)
 
-## Setup steps
+## 1) Configure the website
 
-1. **Create Firebase project**
-   - Go to https://console.firebase.google.com
-   - Create a new project (e.g., batch-capsule-2025)
-   - Enable **Realtime Database** and set location.
-   - Set database rules temporarily to allow writes from your Apps Script:
-     ```json
-     {
-       "rules": {
-         ".read": true,
-         ".write": true
-       }
-     }
-     ```
-     (Important: after testing, tighten rules. Recommended final rule: only allow read to public at reveal time, and writes only from a server/service account.)
+Edit `firebase-config.js`:
+- `googleFormUrl`: paste your public Google Form URL.
+- `revealIso`: set the reveal date/time in UTC.
 
-2. **Edit `scripts/firebase-config.js`**
-   - Replace placeholders with your Firebase project's config (found in Project Settings -> General -> SDK).
+Example:
+```js
+const appConfig = {
+  googleFormUrl: "https://forms.gle/yourFormLink",
+  revealIso: "2026-06-01T00:00:00Z"
+};
+```
 
-3. **Google Form & Sheet**
-   - Create the Google Form with fields: `Name`, `Message` (long answer), `File Upload`.
-   - Responses -> linked Google Sheet.
-   - In the Sheet: Extensions > Apps Script -> paste `google-apps-script.js`, update `FIREBASE_DB_URL` and optionally `FIREBASE_PATH`.
-   - Save and set up a trigger: `onFormSubmit` -> `From spreadsheet` -> `On form submit`.
+## 2) Send Google Form responses to Firebase automatically
 
-4. **Deploy site**
-   - Push repository to GitHub.
-   - Enable GitHub Pages from repo Settings -> Pages -> Deploy from `main` branch (`/ (root)`).
-   - Or host on Netlify/Vercel if preferred.
+1. Create your Google Form with fields like:
+   - `Name`
+   - `Message`
+   - `File Upload` (optional)
+2. Link the form to a response Google Sheet.
+3. In that Sheet, open **Extensions → Apps Script**.
+4. Paste the content of `google-apps-script.js`.
+5. Update these constants in the script:
+   - `FIREBASE_DB_URL`
+   - `FIREBASE_PATH`
+6. Add trigger:
+   - Function: `onFormSubmit`
+   - Event source: `From spreadsheet`
+   - Event type: `On form submit`
 
-5. **Security**
-   - After confirming pushes, update Realtime DB rules:
-     - Allow reads only when you want to open capsule (e.g., set `.read` to false until reveal).
-     - Or keep `.read` true and rely on front-end lock (less secure).
-   - Better: Keep DB `.read` false until reveal. When you're ready, change rules to allow `.read` true (public) or deploy a server that authenticates reads for viewers.
+After this, every new response is posted to:
+`/<FIREBASE_PATH>` in your Realtime Database.
 
-6. **Reveal**
-   - Set `REVEAL_ISO` in `scripts/app.js` to your chosen reveal date.
-   - On reveal date, the site will automatically show entries.
+## 3) Lock entries until reveal day
 
-## Admin tips
-- Use a separate admin Firebase service account if you want to programmatically change rules later.
-- If files are large, consider storing them in Firebase Storage and saving download URLs in the Realtime DB.
+The frontend already stays locked until `revealIso`.
+For database-level protection, use `firebase.rules.json` and set the reveal timestamp (`now >= ...`) to your own date.
+
+Convert reveal date to milliseconds (UTC):
+```bash
+date -d '2026-06-01T00:00:00Z' +%s
+```
+Then multiply by 1000 for Firebase rules.
+
+> Important: The sample rules currently allow direct writes in `capsuleEntries` so Apps Script can post without authentication. For production hardening, move writes to an authenticated backend (Cloud Functions/service account) and set `.write` to false for clients.
+
+## 4) Deploy
+
+Host as static site (GitHub Pages / Netlify / Vercel). Make sure these files are deployed together.
+
+## 5) Reveal day behavior
+
+- Before reveal date: lock card + countdown, entries hidden.
+- At/after reveal date: website auto-opens and loads entries from Firebase.
