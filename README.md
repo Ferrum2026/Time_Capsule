@@ -4,16 +4,16 @@ Dark-futuristic single-page site that reads entries from Firebase Realtime Datab
 
 ## Files
 - index.html
-- style/main.css
-- scripts/firebase-config.js (replace with your Firebase config)
-- scripts/app.js
+- main.css
+- firebase-config.js (replace with your Firebase config)
+- app.js
 - google-apps-script.js (paste into Google Sheets > Apps Script for the form)
 
 ## Setup steps
 
 1. **Create Firebase project**
    - Go to https://console.firebase.google.com
-   - Create a new project (e.g., batch-capsule-2025)
+   - Create a new project (e.g., batch-capsule-2026)
    - Enable **Realtime Database** and set location.
    - Set database rules temporarily to allow writes from your Apps Script:
      ```json
@@ -26,7 +26,7 @@ Dark-futuristic single-page site that reads entries from Firebase Realtime Datab
      ```
      (Important: after testing, tighten rules. Recommended final rule: only allow read to public at reveal time, and writes only from a server/service account.)
 
-2. **Edit `scripts/firebase-config.js`**
+2. **Edit `firebase-config.js`**
    - Replace placeholders with your Firebase project's config (found in Project Settings -> General -> SDK).
 
 3. **Google Form & Sheet**
@@ -47,7 +47,7 @@ Dark-futuristic single-page site that reads entries from Firebase Realtime Datab
    - Better: Keep DB `.read` false until reveal. When you're ready, change rules to allow `.read` true (public) or deploy a server that authenticates reads for viewers.
 
 6. **Reveal**
-   - Set `REVEAL_ISO` in `scripts/app.js` to your chosen reveal date.
+   - Set `REVEAL_ISO` in `app.js` to your chosen reveal date.
    - On reveal date, the site will automatically show entries.
 
 ## Admin tips
