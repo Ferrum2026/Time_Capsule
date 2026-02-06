@@ -50,7 +50,7 @@ function firstValue(fieldValue) {
 
 function extractFileUrl(row) {
   // If your file upload question has a different title, update this key.
-  const fileField = row['File Upload'] || row['Upload'] || row['Attachment'];
+  const fileField = row['Files'] || row['File Upload'] || row['Upload'] || row['Attachment'];
   if (!fileField) return '';
 
   if (Array.isArray(fileField)) {

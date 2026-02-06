@@ -21,6 +21,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (el) {
       if (submitUrl && /^https?:\/\//i.test(submitUrl)) {
         el.href = submitUrl;
+        el.classList.remove("disabled");
+        el.setAttribute("target", "_blank");
+        el.removeAttribute("title");
       } else {
         el.href = "#";
         el.classList.add("disabled");
