@@ -293,11 +293,12 @@ document.addEventListener("DOMContentLoaded", () => {
           ? Object.entries(data).map(([id, value]) => ({ id, ...(value || {}) }))
           : [];
 
-        entries.sort((a, b) => {
-          const aTime = new Date(a.timestamp || 0).getTime();
-          const bTime = new Date(b.timestamp || 0).getTime();
-          return bTime - aTime;
-        });
+        const toTime = (value) => {
+          const parsed = new Date(value || 0).getTime();
+          return Number.isNaN(parsed) ? 0 : parsed;
+        };
+
+        entries.sort((a, b) => toTime(b.timestamp) - toTime(a.timestamp));
 
         if (entries.length && !selectedEntryId) {
           selectedEntryId = entries[0].id;
