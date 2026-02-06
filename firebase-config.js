@@ -11,7 +11,7 @@ const firebaseConfig = {
 
 const appConfig = {
   googleFormUrl: "https://docs.google.com/forms/d/e/1FAIpQLSdxraYeyrpC4zMC-EtXQg8xauGSrtsys34AU_bLf7MwOcB1vg/viewform?usp=header",
-  revealIso: "2026-01-01T12:00:00Z"
+  revealIso: "2026-02-06T00:00:00"
 };
 
 window.__FIREBASE_CONFIG = firebaseConfig;

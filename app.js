@@ -2,7 +2,8 @@
 document.addEventListener("DOMContentLoaded", () => {
   console.log("🧭 Time Capsule website loaded.");
 
-  const revealDate = new Date("2025-11-01T00:00:00");
+  const appConfig = window.__APP_CONFIG || {};
+  const revealDate = appConfig.revealIso ? new Date(appConfig.revealIso) : new Date();
   const revealDateText = document.getElementById("reveal-date-text");
   const lockStatus = document.getElementById("lock-status");
   const countdownElems = {
