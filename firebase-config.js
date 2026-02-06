@@ -14,9 +14,9 @@ const firebaseConfig = {
 // App-level settings used by app.js
 const appConfig = {
   // Set your public Google Form link here so both submit buttons work.
-  googleFormUrl: "https://forms.gle/REPLACE_WITH_YOUR_FORM_LINK",
+  googleFormUrl: "https://docs.google.com/forms/d/e/1FAIpQLSdxraYeyrpC4zMC-EtXQg8xauGSrtsys34AU_bLf7MwOcB1vg/viewform?usp=header",
   // UTC reveal time. Before this date, capsule entries stay hidden in the website.
-  revealIso: "2025-11-01T00:00:00Z"
+  revealIso: "2026-01-01T12:00:00Z"
 };
 
 window.__FIREBASE_CONFIG = firebaseConfig;

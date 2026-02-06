@@ -16,7 +16,7 @@ function onFormSubmit(e) {
     throw new Error('No form submission payload received.');
   }
 
-  const row = e.namedValues;
+  const row = e.namedValues; // keys are your exact Google Form question titles
 
   const payload = {
     name: firstValue(row['Name']) || 'Anonymous',
