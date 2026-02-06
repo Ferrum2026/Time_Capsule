@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const appConfig = window.__APP_CONFIG || {};
   const revealDate = new Date(appConfig.revealIso || "2025-11-01T00:00:00Z");
   const revealDateText = document.getElementById("reveal-date-text");
+  const revealDateTextInline = document.getElementById("reveal-date-text-inline");
   const countdownElems = {
     days: document.getElementById("cd-days"),
     hours: document.getElementById("cd-hours"),
@@ -13,62 +14,88 @@ document.addEventListener("DOMContentLoaded", () => {
     secs: document.getElementById("cd-secs"),
   };
 
+  const lockSection = document.getElementById("capsule-lock");
+  const capsuleContents = document.getElementById("capsule-contents");
+  const revealSequence = document.getElementById("reveal-sequence");
   const submitUrl = (appConfig.googleFormUrl || "").trim();
+
   const submitLink = document.getElementById("submit-link");
   const ctaSubmit = document.getElementById("cta-submit");
 
   [submitLink, ctaSubmit].forEach((el) => {
-    if (el) {
-      if (submitUrl && /^https?:\/\//i.test(submitUrl)) {
-        el.href = submitUrl;
-        el.classList.remove("disabled");
-        el.setAttribute("target", "_blank");
-        el.removeAttribute("title");
-      } else {
-        el.href = "#";
-        el.classList.add("disabled");
-        el.removeAttribute("target");
-        el.setAttribute("title", "Set your Google Form link in firebase-config.js");
-      }
+    if (!el) return;
+
+    if (submitUrl && /^https?:\/\//i.test(submitUrl)) {
+      el.href = submitUrl;
+      el.classList.remove("disabled");
+      el.setAttribute("target", "_blank");
+      el.removeAttribute("title");
+      return;
     }
+
+    el.href = "#";
+    el.classList.add("disabled");
+    el.removeAttribute("target");
+    el.setAttribute("title", "Set your Google Form link in firebase-config.js");
   });
 
-  const revealDateTextInline = document.getElementById("reveal-date-text-inline");
   const revealDateTime = revealDate.getTime();
   const revealDateLabel = Number.isNaN(revealDateTime)
     ? "Set reveal date in firebase-config.js"
     : revealDate.toUTCString();
 
-  if (!revealDateText) {
-    console.warn("⚠️ reveal-date-text element not found — skipping date display.");
-  } else {
-    revealDateText.textContent = revealDateLabel;
-  }
+  if (revealDateText) revealDateText.textContent = revealDateLabel;
   if (revealDateTextInline) revealDateTextInline.textContent = revealDateLabel;
 
-  const lockSection = document.getElementById("capsule-lock");
-  const capsuleContents = document.getElementById("capsule-contents");
-
-  function openCapsule() {
-    if (lockSection) lockSection.classList.add("hidden");
-    if (capsuleContents) capsuleContents.classList.remove("hidden");
-    loadCapsuleEntries();
-  }
+  let capsuleOpened = false;
 
   function keepLocked() {
     if (lockSection) lockSection.classList.remove("hidden");
     if (capsuleContents) capsuleContents.classList.add("hidden");
+    if (revealSequence) revealSequence.classList.add("hidden");
+  }
+
+  function displayOpenedCapsule() {
+    if (lockSection) lockSection.classList.add("hidden");
+    if (revealSequence) revealSequence.classList.add("hidden");
+    if (capsuleContents) capsuleContents.classList.remove("hidden");
+    loadCapsuleEntries();
+  }
+
+  function playRevealSequence() {
+    if (capsuleOpened) return;
+    capsuleOpened = true;
+
+    if (lockSection) lockSection.classList.add("hidden");
+    if (revealSequence) revealSequence.classList.remove("hidden");
+
+    if (!revealSequence) {
+      displayOpenedCapsule();
+      return;
+    }
+
+    revealSequence.classList.remove("is-cracking", "is-opening");
+    void revealSequence.offsetWidth;
+    revealSequence.classList.add("is-cracking");
+
+    setTimeout(() => {
+      revealSequence.classList.add("is-opening");
+    }, 1300);
+
+    setTimeout(() => {
+      displayOpenedCapsule();
+    }, 3200);
   }
 
   function updateCountdown() {
-    const now = new Date();
-    const diff = revealDate - now;
+    const now = Date.now();
+    const diff = revealDateTime - now;
 
-    if (Number.isNaN(diff) || diff <= 0) {
+    if (Number.isNaN(revealDateTime) || diff <= 0) {
       Object.values(countdownElems).forEach((el) => {
         if (el) el.textContent = "00";
       });
-      openCapsule();
+      playRevealSequence();
       return;
     }
 
@@ -77,16 +104,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const mins = Math.floor((diff / (1000 * 60)) % 60);
     const secs = Math.floor((diff / 1000) % 60);
 
-    if (countdownElems.days) countdownElems.days.textContent = days.toString().padStart(2, "0");
-    if (countdownElems.hours) countdownElems.hours.textContent = hours.toString().padStart(2, "0");
-    if (countdownElems.mins) countdownElems.mins.textContent = mins.toString().padStart(2, "0");
-    if (countdownElems.secs) countdownElems.secs.textContent = secs.toString().padStart(2, "0");
+    if (countdownElems.days) countdownElems.days.textContent = String(days).padStart(2, "0");
+    if (countdownElems.hours) countdownElems.hours.textContent = String(hours).padStart(2, "0");
+    if (countdownElems.mins) countdownElems.mins.textContent = String(mins).padStart(2, "0");
+    if (countdownElems.secs) countdownElems.secs.textContent = String(secs).padStart(2, "0");
 
     keepLocked();
   }
 
-  setInterval(updateCountdown, 1000);
+  const countdownTimer = setInterval(updateCountdown, 1000);
   updateCountdown();
+
+  if (!Number.isNaN(revealDateTime) && revealDateTime <= Date.now()) {
+    clearInterval(countdownTimer);
+  }
 
   function loadCapsuleEntries() {
     const firebaseConfig = window.__FIREBASE_CONFIG;
@@ -99,15 +130,12 @@ document.addEventListener("DOMContentLoaded", () => {
       firebase.initializeApp(firebaseConfig);
     }
 
-    const db = firebase.database();
-    const ref = db.ref("capsuleEntries");
-
     const entriesContainer = document.getElementById("entries");
     if (!entriesContainer) return;
 
     entriesContainer.innerHTML = "<p>Loading capsule entries...</p>";
 
-    ref.once("value")
+    firebase.database().ref("capsuleEntries").once("value")
       .then((snapshot) => {
         const data = snapshot.val();
         entriesContainer.innerHTML = "";
@@ -118,7 +146,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         Object.values(data)
-          .sort((a, b) => (a.submittedAt || "").localeCompare(b.submittedAt || ""))
+          .sort((a, b) => {
+            const nameA = (a.name || "Anonymous").toLowerCase();
+            const nameB = (b.name || "Anonymous").toLowerCase();
+            if (nameA !== nameB) return nameA.localeCompare(nameB);
+            return (a.submittedAt || "").localeCompare(b.submittedAt || "");
+          })
           .forEach((entry) => {
             const div = document.createElement("article");
             div.className = "entry";
