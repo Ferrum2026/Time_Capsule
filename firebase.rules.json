@@ -8,6 +8,15 @@
         ".write": true,
         ".validate": "newData.hasChildren(['name','message','submittedAt'])"
       }
+    },
+    "sheetSubmissions": {
+      "$sheetName": {
+        "$entryId": {
+          ".read": false,
+          ".write": true,
+          ".validate": "newData.hasChildren(['sheetName','rowIndex','submittedAt','fields'])"
+        }
+      }
     }
   }
 }

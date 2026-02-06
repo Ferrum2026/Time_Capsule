@@ -46,8 +46,11 @@ const appConfig = {
    - Event source: `From spreadsheet`
    - Event type: `On form submit`
 
-After this, every new response is posted to:
-`/<FIREBASE_PATH>` in your Realtime Database.
+After this, every new response is posted to two locations in Realtime Database:
+- `/capsuleEntries` (normalized shape used by the website)
+- `/sheetSubmissions/<sheetName>` (full row data organized by sheet tab)
+
+So you get both: website-ready entries and a clean per-sheet archive.
 
 ## 3) Lock entries until reveal day
 
