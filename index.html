@@ -29,7 +29,7 @@
       <a href="#capsule" class="nav-link">Capsule</a>
       <a href="#film" class="nav-link">Batch Film</a>
       <a href="#memories" class="nav-link">Memory Wall</a>
-      <a id="submit-link" class="btn ghost" href="https://docs.google.com/forms/d/e/1FAIpQLSdxraYeyrpC4zMC-EtXQg8xauGSrtsys34AU_bLf7MwOcB1vg/viewform?usp=header" target="_blank">Submit Memory</a>
+      <a id="submit-link" class="btn ghost" href="#" target="_blank">Submit Memory</a>
     </nav>
   </header>
 
@@ -41,7 +41,7 @@
           Send a message, photo, audio, or video. Everything will be sealed until opening day.
         </p>
         <div class="hero-cta">
-          <a id="cta-submit" class="btn" href="https://docs.google.com/forms/d/e/1FAIpQLSdxraYeyrpC4zMC-EtXQg8xauGSrtsys34AU_bLf7MwOcB1vg/viewform?usp=header" target="_blank">Send Your Memory</a>
+          <a id="cta-submit" class="btn" href="#" target="_blank">Send Your Memory</a>
           <a id="cta-view" class="btn ghost" href="#capsule">Enter Capsule</a>
         </div>
       </div>
@@ -67,12 +67,22 @@
           <div class="lock-icon">🔒</div>
           <h4>Capsule is sealed</h4>
           <p id="lock-status">The contents are stored privately. They will be opened on the reveal date.</p>
+          <p class="muted">Contributors are visible as anonymous while the vault is sealed.</p>
         </div>
       </div>
 
-      <div id="capsule-contents" class="capsule-contents hidden">
-        <h4>Opened Capsule — Entries</h4>
-        <div id="entries" class="entries-grid"></div>
+      <div id="capsule-contents" class="capsule-contents">
+        <h4 id="capsule-state-title">Sealed Capsule — Anonymous Directory</h4>
+        <div class="capsule-browser">
+          <aside class="entry-list-panel">
+            <h5 id="entry-list-title">Contributors</h5>
+            <div id="entries-list" class="entries-list"></div>
+          </aside>
+          <article class="entry-detail-panel">
+            <h5 id="entry-detail-title">Vault locked</h5>
+            <div id="entry-detail" class="entry-detail-body"></div>
+          </article>
+        </div>
       </div>
     </section>
 
@@ -106,5 +116,4 @@
   <script src="app.js"></script>
 </body>
 </html>
-
 

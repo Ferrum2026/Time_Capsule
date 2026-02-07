@@ -47,6 +47,7 @@ Dark-futuristic single-page site that reads entries from Firebase Realtime Datab
    - Better: Keep DB `.read` false until reveal. When you're ready, change rules to allow `.read` true (public) or deploy a server that authenticates reads for viewers.
 
 6. **Reveal**
+
    - Set `REVEAL_ISO` in `app.js` to your chosen reveal date.
    - On reveal date, the site will automatically show entries.
 

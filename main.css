@@ -121,15 +121,6 @@ nav{display:flex;gap:12px;align-items:center}
 .lock-icon{font-size:40px;margin-bottom:8px}
 .hidden{display:none}
 
-/* grouped entries */
-.name-group{margin-top:18px}
-.name-group-title{margin:0 0 10px 0;padding-bottom:8px;color:var(--gold);border-bottom:1px solid rgba(255,255,255,0.07);font-size:17px}
-.name-group-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
-.entry{background:var(--panel);padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
-.entry .meta{font-size:12px;color:var(--muted);margin-bottom:8px}
-.entry p{margin:0 0 8px 0}
-.entry img{width:100%;height:160px;object-fit:cover;border-radius:8px}
-.entry video,audio{width:100%;border-radius:8px}
 
 /* film & memories */
 .film-section,.memories-section{padding:28px;border-top:1px solid rgba(255,255,255,0.02)}
@@ -162,9 +153,27 @@ nav{display:flex;gap:12px;align-items:center}
   100% {transform:rotate(560deg) translateX(55vmin) scale(.92); opacity:0}
 }
 
+
+.muted{color:var(--muted)}
+
+.capsule-browser{display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:14px;margin-top:14px}
+.entry-list-panel,.entry-detail-panel{background:var(--panel);border:1px solid rgba(255,255,255,0.05);border-radius:12px;padding:14px}
+.entry-list-panel h5,.entry-detail-panel h5{margin:0 0 10px 0}
+.entries-list{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto}
+.entry-list-item{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px;text-align:left;color:#e6eef6;cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.entry-list-item span{font-size:12px;color:var(--muted)}
+.entry-list-item.active{border-color:var(--accent);box-shadow:0 0 0 1px rgba(107,228,255,0.25) inset}
+.entry-detail-body p{margin:0 0 10px 0}
+.entry-meta{font-size:12px;color:var(--muted)}
+.entry-media{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.entry-media img,.entry-media video,.entry-media audio{width:100%;border-radius:8px;background:#08090c}
+.attachment-link{display:inline-block;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.05);color:var(--accent);text-decoration:none}
+
 /* responsive */
 @media (max-width:900px){
   .hero{flex-direction:column}
   .header{flex-direction:column;align-items:flex-start;gap:10px}
   .capsule-header{flex-direction:column;align-items:flex-start}
+  .capsule-browser{grid-template-columns:1fr}
 }
+
