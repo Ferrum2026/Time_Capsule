@@ -3,7 +3,8 @@ document.addEventListener("DOMContentLoaded", () => {
   console.log("🧭 Time Capsule website loaded.");
 
   const appConfig = window.__APP_CONFIG || {};
-  const revealDate = appConfig.revealIso ? new Date(appConfig.revealIso) : new Date();
+  const configuredRevealDate = appConfig.revealIso ? new Date(appConfig.revealIso) : new Date();
+  const revealDate = Number.isNaN(configuredRevealDate.getTime()) ? new Date() : configuredRevealDate;
 
   const revealDateText = document.getElementById("reveal-date-text");
   const lockStatus = document.getElementById("lock-status");
@@ -14,6 +15,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const entriesList = document.getElementById("entries-list");
   const entryDetail = document.getElementById("entry-detail");
   const revealSequence = document.getElementById("reveal-sequence");
+  const submitLink = document.getElementById("submit-link");
+  const ctaSubmit = document.getElementById("cta-submit");
 
   const countdownElems = {
     days: document.getElementById("cd-days"),
@@ -29,6 +32,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (revealDateText) {
     revealDateText.textContent = revealDate.toDateString();
+  }
+
+  if (appConfig.googleFormUrl) {
+    if (submitLink) submitLink.href = appConfig.googleFormUrl;
+    if (ctaSubmit) ctaSubmit.href = appConfig.googleFormUrl;
   }
 
   function getDisplayName(entry, index) {
