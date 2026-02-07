@@ -47,9 +47,30 @@ Dark-futuristic single-page site that reads entries from Firebase Realtime Datab
    - Better: Keep DB `.read` false until reveal. When you're ready, change rules to allow `.read` true (public) or deploy a server that authenticates reads for viewers.
 
 6. **Reveal**
-   - Set `window.__APP_CONFIG.revealIso` in `firebase-config.js` to your chosen reveal date.
+   - Set `REVEAL_ISO` in `app.js` to your chosen reveal date.
    - On reveal date, the site will automatically show entries.
 
 ## Admin tips
 - Use a separate admin Firebase service account if you want to programmatically change rules later.
 - If files are large, consider storing them in Firebase Storage and saving download URLs in the Realtime DB.
+
+
+## Maintainer note: avoiding merge conflicts with multiple Codex PRs
+
+If you have multiple open PRs from the same work stream, merge conflicts are expected because each PR edits the same files (`index.html`, `app.js`, `main.css`).
+
+Recommended process:
+
+1. Keep only the **latest** PR open.
+2. Close older/superseded PRs without merging.
+3. Update the latest branch with the base branch (`main`) and resolve conflicts once:
+   ```bash
+   git fetch origin
+   git checkout <latest-pr-branch>
+   git merge origin/main
+   # resolve conflicts, test, commit
+   git push
+   ```
+4. Merge that single updated PR.
+
+This repository should be treated as "one active UI PR at a time" to prevent repeated conflicts.
