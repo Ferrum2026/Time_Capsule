@@ -2,9 +2,22 @@
 document.addEventListener("DOMContentLoaded", () => {
   console.log("🧭 Time Capsule website loaded.");
 
-  const revealDate = new Date("2025-11-01T00:00:00");
+  const appConfig = window.__APP_CONFIG || {};
+  const configuredRevealDate = appConfig.revealIso ? new Date(appConfig.revealIso) : new Date();
+  const revealDate = Number.isNaN(configuredRevealDate.getTime()) ? new Date() : configuredRevealDate;
+
   const revealDateText = document.getElementById("reveal-date-text");
   const lockStatus = document.getElementById("lock-status");
+  const lockSection = document.getElementById("capsule-lock");
+  const capsuleStateTitle = document.getElementById("capsule-state-title");
+  const entryListTitle = document.getElementById("entry-list-title");
+  const entryDetailTitle = document.getElementById("entry-detail-title");
+  const entriesList = document.getElementById("entries-list");
+  const entryDetail = document.getElementById("entry-detail");
+  const revealSequence = document.getElementById("reveal-sequence");
+  const submitLink = document.getElementById("submit-link");
+  const ctaSubmit = document.getElementById("cta-submit");
+
   const countdownElems = {
     days: document.getElementById("cd-days"),
     hours: document.getElementById("cd-hours"),
@@ -12,24 +25,314 @@ document.addEventListener("DOMContentLoaded", () => {
     secs: document.getElementById("cd-secs"),
   };
 
-  const lockSection = document.getElementById("capsule-lock");
-  const capsuleContents = document.getElementById("capsule-contents");
-  const entriesContainer = document.getElementById("entries");
-  const revealSequence = document.getElementById("reveal-sequence");
   let revealStarted = false;
+  let capsuleOpened = false;
+  let entries = [];
+  let selectedEntryId = null;
 
   if (revealDateText) {
     revealDateText.textContent = revealDate.toDateString();
   }
 
+  if (appConfig.googleFormUrl) {
+    if (submitLink) submitLink.href = appConfig.googleFormUrl;
+    if (ctaSubmit) ctaSubmit.href = appConfig.googleFormUrl;
+  }
+
+  function firstNonEmpty(raw, keys) {
+    for (const key of keys) {
+      const value = raw?.[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    return "";
+  }
+
+  function firstNumber(raw, keys) {
+    for (const key of keys) {
+      const value = raw?.[key];
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string" && value.trim()) {
+        const num = Number(value);
+        if (Number.isFinite(num)) return num;
+      }
+    }
+    return null;
+  }
+
+  function normalizeAttachments(raw) {
+    const collected = [];
+
+    const addUrl = (value, meta = {}) => {
+      if (typeof value !== "string") return;
+      const url = value.trim();
+      if (!url) return;
+      collected.push({
+        url,
+        type: meta.type || "",
+        name: meta.name || "",
+      });
+    };
+
+    const addUnknown = (value) => {
+      if (!value) return;
+
+      if (typeof value === "string") {
+        addUrl(value);
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach((item) => addUnknown(item));
+        return;
+      }
+
+      if (typeof value === "object") {
+        addUrl(value.url || value.fileUrl || value.downloadURL || value.downloadUrl || value.src || value.link, {
+          type: value.type || value.mimeType || value.contentType,
+          name: value.name || value.fileName || value.filename,
+        });
+      }
+    };
+
+    [
+      "fileUrl",
+      "fileURL",
+      "photoUrl",
+      "imageUrl",
+      "videoUrl",
+      "audioUrl",
+      "attachmentUrl",
+      "mediaUrl",
+      "mediaURL",
+    ].forEach((key) => addUnknown(raw?.[key]));
+
+    ["files", "fileUrls", "attachments", "media", "uploads", "assets"].forEach((key) => addUnknown(raw?.[key]));
+
+    if (typeof raw?.uploadedFiles === "string") {
+      raw.uploadedFiles.split(",").forEach((part) => addUnknown(part));
+    }
+
+    const deduped = [];
+    const seen = new Set();
+
+    collected.forEach((item) => {
+      if (seen.has(item.url)) return;
+      seen.add(item.url);
+      deduped.push(item);
+    });
+
+    return deduped;
+  }
+
+  function normalizeEntry(id, raw) {
+    const name = firstNonEmpty(raw, [
+      "name",
+      "fullName",
+      "fullname",
+      "senderName",
+      "studentName",
+      "displayName",
+      "submittedBy",
+    ]);
+
+    const message = firstNonEmpty(raw, [
+      "message",
+      "msg",
+      "letter",
+      "note",
+      "futureMessage",
+      "messageToFutureSelf",
+      "Message",
+      "Message to Future Self",
+    ]);
+
+    const isoDate = firstNonEmpty(raw, ["timestamp", "createdAt", "submittedAt", "date", "time", "created_on"]);
+    const msDate = firstNumber(raw, ["timestampMs", "createdAtMs", "ts"]);
+
+    let timestampText = isoDate;
+    if (!timestampText && msDate !== null) {
+      timestampText = new Date(msDate).toISOString();
+    }
+
+    return {
+      id,
+      name,
+      message,
+      timestamp: timestampText || "No timestamp",
+      sortTime: msDate !== null ? msDate : (() => {
+        const parsed = new Date(isoDate || 0).getTime();
+        return Number.isNaN(parsed) ? 0 : parsed;
+      })(),
+      attachments: normalizeAttachments(raw),
+      raw,
+    };
+  }
+
+  function getDisplayName(entry, index) {
+    if (capsuleOpened && entry.name) return entry.name;
+    return `Anonymous ${index + 1}`;
+  }
+
+  function inferTypeFromUrl(url) {
+    const cleanedUrl = url.split("?")[0].split("#")[0].toLowerCase();
+    if (/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/.test(cleanedUrl)) return "image";
+    if (/\.(mp4|mov|avi|webm|m4v)$/.test(cleanedUrl)) return "video";
+    if (/\.(mp3|wav|ogg|m4a|aac)$/.test(cleanedUrl)) return "audio";
+    return "file";
+  }
+
+  function renderAttachment(target, attachment) {
+    const type = (attachment.type || "").toLowerCase();
+    const inferred = inferTypeFromUrl(attachment.url);
+    const resolvedType = type.startsWith("image/")
+      ? "image"
+      : type.startsWith("video/")
+        ? "video"
+        : type.startsWith("audio/")
+          ? "audio"
+          : inferred;
+
+    if (resolvedType === "image") {
+      const img = document.createElement("img");
+      img.src = attachment.url;
+      img.alt = attachment.name || "Memory attachment";
+      img.loading = "lazy";
+      target.appendChild(img);
+      return;
+    }
+
+    if (resolvedType === "video") {
+      const video = document.createElement("video");
+      video.src = attachment.url;
+      video.controls = true;
+      video.preload = "metadata";
+      target.appendChild(video);
+      return;
+    }
+
+    if (resolvedType === "audio") {
+      const audio = document.createElement("audio");
+      audio.src = attachment.url;
+      audio.controls = true;
+      audio.preload = "metadata";
+      target.appendChild(audio);
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = attachment.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = attachment.name || "Open attached file";
+    link.className = "attachment-link";
+    target.appendChild(link);
+  }
+
+  function renderSelectedEntry() {
+    if (!entryDetail || !entryDetailTitle) return;
+
+    if (!entries.length) {
+      entryDetailTitle.textContent = capsuleOpened ? "Opened vault" : "Vault locked";
+      entryDetail.innerHTML = "<p>No entries yet — the capsule is still being filled.</p>";
+      return;
+    }
+
+    const selectedEntry = entries.find((entry) => entry.id === selectedEntryId) || entries[0];
+    selectedEntryId = selectedEntry.id;
+
+    const selectedIndex = entries.findIndex((entry) => entry.id === selectedEntryId);
+    entryDetailTitle.textContent = getDisplayName(selectedEntry, selectedIndex);
+    entryDetail.innerHTML = "";
+
+    const meta = document.createElement("p");
+    meta.className = "entry-meta";
+    meta.textContent = selectedEntry.timestamp || "No timestamp";
+    entryDetail.appendChild(meta);
+
+    if (!capsuleOpened) {
+      const lockedMsg = document.createElement("p");
+      lockedMsg.textContent = "Identity, message, and files remain sealed until the reveal moment.";
+      entryDetail.appendChild(lockedMsg);
+
+      if (selectedEntry.attachments.length) {
+        const attachmentCount = document.createElement("p");
+        attachmentCount.className = "muted";
+        attachmentCount.textContent = `${selectedEntry.attachments.length} attachment(s) sealed in this memory.`;
+        entryDetail.appendChild(attachmentCount);
+      }
+      return;
+    }
+
+    const message = document.createElement("p");
+    message.textContent = selectedEntry.message || "No message provided.";
+    entryDetail.appendChild(message);
+
+    if (selectedEntry.attachments.length) {
+      const mediaWrap = document.createElement("div");
+      mediaWrap.className = "entry-media";
+      selectedEntry.attachments.forEach((attachment) => renderAttachment(mediaWrap, attachment));
+      entryDetail.appendChild(mediaWrap);
+    }
+  }
+
+  function renderEntriesList() {
+    if (!entriesList || !entryListTitle) return;
+
+    entriesList.innerHTML = "";
+    entryListTitle.textContent = capsuleOpened ? "Contributors (revealed)" : "Contributors (anonymous)";
+
+    if (!entries.length) {
+      entriesList.innerHTML = "<p>No contributors yet.</p>";
+      return;
+    }
+
+    entries.forEach((entry, index) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "entry-list-item";
+      if (entry.id === selectedEntryId) btn.classList.add("active");
+
+      const name = document.createElement("strong");
+      name.textContent = getDisplayName(entry, index);
+
+      const time = document.createElement("span");
+      time.textContent = entry.timestamp || "No timestamp";
+
+      btn.appendChild(name);
+      btn.appendChild(time);
+
+      btn.addEventListener("click", () => {
+        selectedEntryId = entry.id;
+        renderEntriesList();
+        renderSelectedEntry();
+      });
+
+      entriesList.appendChild(btn);
+    });
+  }
+
+  function syncVaultStateUI() {
+    if (capsuleOpened) {
+      if (lockSection) lockSection.classList.add("hidden");
+      if (capsuleStateTitle) capsuleStateTitle.textContent = "Opened Capsule — Names and Memories Revealed";
+      if (lockStatus) lockStatus.textContent = "The capsule is open. Names, messages, and media are now revealed.";
+      return;
+    }
+
+    if (lockSection) lockSection.classList.remove("hidden");
+    if (capsuleStateTitle) capsuleStateTitle.textContent = "Sealed Capsule — Anonymous Directory";
+    if (lockStatus) lockStatus.textContent = "The contents are stored privately. They will be opened on the reveal date.";
+  }
+
   function openCapsule() {
-    if (lockSection) lockSection.classList.add("hidden");
-    if (capsuleContents) capsuleContents.classList.remove("hidden");
-    loadCapsuleEntries();
+    capsuleOpened = true;
+    syncVaultStateUI();
+    renderEntriesList();
+    renderSelectedEntry();
   }
 
   function startRevealSequence() {
-    if (revealStarted) return;
+    if (revealStarted || capsuleOpened) return;
     revealStarted = true;
 
     if (lockStatus) {
@@ -62,7 +365,7 @@ document.addEventListener("DOMContentLoaded", () => {
       Object.values(countdownElems).forEach((el) => {
         if (el) el.textContent = "00";
       });
-      startRevealSequence();
+      if (!capsuleOpened) startRevealSequence();
       return;
     }
 
@@ -77,93 +380,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (countdownElems.secs) countdownElems.secs.textContent = secs.toString().padStart(2, "0");
   }
 
-  setInterval(updateCountdown, 1000);
-  updateCountdown();
-
-  function createEntryCard(entry) {
-    const div = document.createElement("div");
-    div.className = "entry";
-
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    meta.textContent = entry.timestamp || "No timestamp";
-
-    const message = document.createElement("p");
-    message.textContent = entry.message || "";
-
-    div.appendChild(meta);
-    div.appendChild(message);
-
-    if (entry.fileUrl) {
-      if (entry.fileUrl.match(/\.(jpg|jpeg|png|gif)$/i)) {
-        const img = document.createElement("img");
-        img.src = entry.fileUrl;
-        img.alt = `${entry.name || "Anonymous"} memory image`;
-        div.appendChild(img);
-      } else if (entry.fileUrl.match(/\.(mp4|mov|avi)$/i)) {
-        const vid = document.createElement("video");
-        vid.src = entry.fileUrl;
-        vid.controls = true;
-        div.appendChild(vid);
-      } else if (entry.fileUrl.match(/\.(mp3|wav|ogg)$/i)) {
-        const aud = document.createElement("audio");
-        aud.src = entry.fileUrl;
-        aud.controls = true;
-        div.appendChild(aud);
-      }
-    }
-
-    return div;
-  }
-
-  function renderGroupedEntries(entries) {
-    if (!entriesContainer) return;
-    entriesContainer.innerHTML = "";
-
-    if (!entries.length) {
-      entriesContainer.innerHTML = "<p>No entries yet — the capsule is still being filled.</p>";
-      return;
-    }
-
-    const grouped = entries.reduce((acc, entry) => {
-      const name = (entry.name || "Anonymous").trim() || "Anonymous";
-      if (!acc[name]) acc[name] = [];
-      acc[name].push(entry);
-      return acc;
-    }, {});
-
-    const sortedNames = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
-
-    sortedNames.forEach((name) => {
-      const section = document.createElement("section");
-      section.className = "name-group";
-
-      const heading = document.createElement("h5");
-      heading.className = "name-group-title";
-      heading.textContent = name;
-
-      const grid = document.createElement("div");
-      grid.className = "name-group-grid";
-
-      grouped[name].forEach((entry) => {
-        grid.appendChild(createEntryCard(entry));
-      });
-
-      section.appendChild(heading);
-      section.appendChild(grid);
-      entriesContainer.appendChild(section);
-    });
-  }
-
   function loadCapsuleEntries() {
     const firebaseConfig = window.__FIREBASE_CONFIG;
     if (!firebaseConfig) {
       console.error("Firebase config not loaded.");
+      if (entriesList) entriesList.innerHTML = "<p>Firebase config missing.</p>";
       return;
     }
 
-    if (!entriesContainer) return;
-    entriesContainer.innerHTML = "<p>Loading capsule entries...</p>";
+    if (entriesList) entriesList.innerHTML = "<p>Loading contributors...</p>";
+    if (entryDetail) entryDetail.innerHTML = "<p>Loading selected entry...</p>";
 
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
@@ -175,12 +401,36 @@ document.addEventListener("DOMContentLoaded", () => {
     ref.once("value")
       .then((snapshot) => {
         const data = snapshot.val();
-        const entries = data ? Object.values(data) : [];
-        renderGroupedEntries(entries);
+        const rawEntries = data
+          ? Object.entries(data).map(([id, value]) => ({ id, value: value || {} }))
+          : [];
+
+        entries = rawEntries.map(({ id, value }) => normalizeEntry(id, value));
+        entries.sort((a, b) => b.sortTime - a.sortTime);
+
+        if (entries.length && !selectedEntryId) {
+          selectedEntryId = entries[0].id;
+        }
+
+        renderEntriesList();
+        renderSelectedEntry();
       })
       .catch((err) => {
         console.error("Error loading entries:", err);
-        entriesContainer.innerHTML = "<p>Error loading capsule contents.</p>";
+        if (entriesList) entriesList.innerHTML = "<p>Error loading contributors.</p>";
+        if (entryDetail) entryDetail.innerHTML = "<p>Error loading capsule contents.</p>";
       });
+  }
+
+  capsuleOpened = new Date() >= revealDate;
+  syncVaultStateUI();
+  loadCapsuleEntries();
+
+  setInterval(updateCountdown, 1000);
+  updateCountdown();
+
+  if (capsuleOpened) {
+    renderEntriesList();
+    renderSelectedEntry();
   }
 });
