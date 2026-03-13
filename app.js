@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const configuredRevealDate = appConfig.revealIso ? new Date(appConfig.revealIso) : new Date();
   const revealDate = Number.isNaN(configuredRevealDate.getTime()) ? new Date() : configuredRevealDate;
   const shouldAnimateOnLoad = appConfig.playRevealAnimation !== false;
+  const forceOpenCapsule = appConfig.forceOpenCapsule === true || appConfig.capsuleOpened === true || appConfig.forceReveal === true;
   const firebasePath = appConfig.firebasePath || "capsuleEntries";
 
   const revealDateText = document.getElementById("reveal-date-text");
@@ -44,21 +45,51 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function findStringByCandidates(raw, exactKeys = [], fuzzyTerms = []) {
-    const rows = objectEntriesCI(raw);
     const loweredExact = exactKeys.map((k) => k.toLowerCase());
+    const loweredFuzzy = fuzzyTerms.map((k) => k.toLowerCase());
+    const queue = [{ node: raw, path: "" }];
+    const exactMatches = [];
+    const fuzzyMatches = [];
 
-    for (const [key, value] of rows) {
-      if (typeof value !== "string" || !value.trim()) continue;
-      if (loweredExact.includes(key.toLowerCase())) return value.trim();
+    while (queue.length) {
+      const current = queue.shift();
+      const node = current.node;
+      const path = current.path;
+
+      if (!node) continue;
+
+      if (typeof node === "string") {
+        const value = node.trim();
+        if (!value) continue;
+        const pathLower = path.toLowerCase();
+
+        if (loweredExact.some((k) => pathLower.endsWith(`.${k}`) || pathLower === k)) {
+          exactMatches.push(value);
+          continue;
+        }
+
+        if (loweredFuzzy.some((term) => pathLower.includes(term))) {
+          fuzzyMatches.push(value);
+        }
+        continue;
+      }
+
+      if (Array.isArray(node)) {
+        node.forEach((item, idx) => {
+          queue.push({ node: item, path: `${path}[${idx}]` });
+        });
+        continue;
+      }
+
+      if (typeof node === "object") {
+        Object.entries(node).forEach(([key, value]) => {
+          const nextPath = path ? `${path}.${String(key)}` : String(key);
+          queue.push({ node: value, path: nextPath });
+        });
+      }
     }
 
-    for (const [key, value] of rows) {
-      if (typeof value !== "string" || !value.trim()) continue;
-      const lk = key.toLowerCase();
-      if (fuzzyTerms.some((term) => lk.includes(term))) return value.trim();
-    }
-
-    return "";
+    return exactMatches[0] || fuzzyMatches[0] || "";
   }
 
   function findNumberByCandidates(raw, keys = []) {
@@ -128,8 +159,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function normalizeEntry(id, raw) {
     const name = findStringByCandidates(
       raw,
-      ["name", "fullName", "fullname", "studentName", "senderName", "displayName", "submittedBy", "Name"],
-      ["name", "submitted by", "sender"],
+      ["name", "fullName", "fullname", "studentName", "senderName", "displayName", "submittedBy", "Name", "yourName"],
+      ["name", "submitted by", "sender", "full name", "student", "what is your name"],
     );
 
     const message = findStringByCandidates(
@@ -388,7 +419,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateCountdown() {
     const diff = revealDate - new Date();
 
-    if (diff <= 0) {
+    if (forceOpenCapsule || diff <= 0) {
       Object.values(countdownElems).forEach((el) => {
         if (el) el.textContent = "00";
       });
@@ -448,7 +479,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  capsuleOpened = new Date() >= revealDate;
+  capsuleOpened = forceOpenCapsule || new Date() >= revealDate;
   syncVaultStateUI();
   loadCapsuleEntries();
 
