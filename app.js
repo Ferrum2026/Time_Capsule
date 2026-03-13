@@ -155,9 +155,42 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  function getDisplayName(entry, index) {
-    const trimmedName = (entry.name || "").trim();
-    if (capsuleOpened && trimmedName) return trimmedName;
+  function getNameKey(name) {
+    return (name || "").trim().toLowerCase();
+  }
+
+  function getDisplayItems() {
+    if (!capsuleOpened) return entries;
+
+    const grouped = new Map();
+    entries.forEach((entry) => {
+      const trimmedName = (entry.name || "").trim();
+      const groupKey = trimmedName ? `name:${getNameKey(trimmedName)}` : `entry:${entry.id}`;
+
+      if (!grouped.has(groupKey)) {
+        grouped.set(groupKey, {
+          id: groupKey,
+          name: trimmedName || "Unnamed contributor",
+          sortTime: entry.sortTime,
+          entries: [],
+        });
+      }
+
+      const bucket = grouped.get(groupKey);
+      bucket.entries.push(entry);
+      if (entry.sortTime > bucket.sortTime) bucket.sortTime = entry.sortTime;
+    });
+
+    return Array.from(grouped.values())
+      .map((group) => ({
+        ...group,
+        entries: group.entries.sort((a, b) => b.sortTime - a.sortTime),
+      }))
+      .sort((a, b) => b.sortTime - a.sortTime);
+  }
+
+  function getListLabel(item, index) {
+    if (capsuleOpened) return item.name;
     return `Anonymous ${index + 1}`;
   }
 
@@ -216,46 +249,59 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderSelectedEntry() {
     if (!entryDetail || !entryDetailTitle) return;
 
-    if (!entries.length) {
+    const displayItems = getDisplayItems();
+    if (!displayItems.length) {
       entryDetailTitle.textContent = capsuleOpened ? "Opened vault" : "Vault locked";
       entryDetail.innerHTML = "<p>No entries yet — the capsule is still being filled.</p>";
       return;
     }
 
-    const selectedEntry = entries.find((entry) => entry.id === selectedEntryId) || entries[0];
-    selectedEntryId = selectedEntry.id;
-    const selectedIndex = entries.findIndex((entry) => entry.id === selectedEntryId);
+    const selectedItem = displayItems.find((item) => item.id === selectedEntryId) || displayItems[0];
+    selectedEntryId = selectedItem.id;
+    const selectedIndex = displayItems.findIndex((item) => item.id === selectedEntryId);
 
-    entryDetailTitle.textContent = getDisplayName(selectedEntry, selectedIndex);
+    entryDetailTitle.textContent = getListLabel(selectedItem, selectedIndex);
     entryDetail.innerHTML = "";
 
-    const meta = document.createElement("p");
-    meta.className = "entry-meta";
-    meta.textContent = selectedEntry.timestamp;
-    entryDetail.appendChild(meta);
-
     if (!capsuleOpened) {
+      const meta = document.createElement("p");
+      meta.className = "entry-meta";
+      meta.textContent = selectedItem.timestamp;
+      entryDetail.appendChild(meta);
+
       const lockedMsg = document.createElement("p");
       lockedMsg.textContent = "Identity, message, and files remain sealed until the reveal moment.";
       entryDetail.appendChild(lockedMsg);
 
-      if (selectedEntry.attachments.length) {
+      if (selectedItem.attachments.length) {
         const attachmentCount = document.createElement("p");
         attachmentCount.className = "muted";
-        attachmentCount.textContent = `${selectedEntry.attachments.length} attachment(s) sealed in this memory.`;
+        attachmentCount.textContent = `${selectedItem.attachments.length} attachment(s) sealed in this memory.`;
         entryDetail.appendChild(attachmentCount);
       }
       return;
     }
 
-    const message = document.createElement("p");
-    message.textContent = selectedEntry.message || "No message provided.";
-    entryDetail.appendChild(message);
+    const selectedEntries = selectedItem.entries || [];
+    const allAttachments = [];
 
-    if (selectedEntry.attachments.length) {
+    selectedEntries.forEach((entry, idx) => {
+      const meta = document.createElement("p");
+      meta.className = "entry-meta";
+      meta.textContent = `Submission ${idx + 1}: ${entry.timestamp}`;
+      entryDetail.appendChild(meta);
+
+      const message = document.createElement("p");
+      message.textContent = entry.message || "No message provided.";
+      entryDetail.appendChild(message);
+
+      allAttachments.push(...entry.attachments);
+    });
+
+    if (allAttachments.length) {
       const mediaWrap = document.createElement("div");
       mediaWrap.className = "entry-media";
-      selectedEntry.attachments.forEach((attachment) => renderAttachment(mediaWrap, attachment));
+      allAttachments.forEach((attachment) => renderAttachment(mediaWrap, attachment));
       entryDetail.appendChild(mediaWrap);
     }
   }
@@ -263,28 +309,34 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderEntriesList() {
     if (!entriesList || !entryListTitle) return;
     entriesList.innerHTML = "";
-    entryListTitle.textContent = capsuleOpened ? "Contributors (revealed)" : "Contributors (anonymous)";
+    entryListTitle.textContent = capsuleOpened ? "Contributors (grouped by name)" : "Contributors (anonymous)";
 
-    if (!entries.length) {
+    const displayItems = getDisplayItems();
+    if (!displayItems.length) {
       entriesList.innerHTML = "<p>No contributors yet.</p>";
       return;
     }
 
-    entries.forEach((entry, index) => {
+    displayItems.forEach((item, index) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "entry-list-item";
-      if (entry.id === selectedEntryId) btn.classList.add("active");
+      if (item.id === selectedEntryId) btn.classList.add("active");
 
       const name = document.createElement("strong");
-      name.textContent = getDisplayName(entry, index);
+      name.textContent = getListLabel(item, index);
       const time = document.createElement("span");
-      time.textContent = entry.timestamp;
+      if (capsuleOpened) {
+        const count = item.entries ? item.entries.length : 1;
+        time.textContent = `${count} submission(s)`;
+      } else {
+        time.textContent = item.timestamp;
+      }
 
       btn.appendChild(name);
       btn.appendChild(time);
       btn.addEventListener("click", () => {
-        selectedEntryId = entry.id;
+        selectedEntryId = item.id;
         renderEntriesList();
         renderSelectedEntry();
       });
