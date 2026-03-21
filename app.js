@@ -1,4 +1,5 @@
 // app.js
+
 document.addEventListener("DOMContentLoaded", () => {
   const appConfig = window.__APP_CONFIG || {};
   const configuredRevealDate = appConfig.revealIso ? new Date(appConfig.revealIso) : new Date();
@@ -156,7 +157,50 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function normalizeEntry(id, raw) {
+  function inferTypeFromUrl(url) {
+    const clean = url.split("?")[0].split("#")[0].toLowerCase();
+    if (/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/.test(clean)) return "image";
+    if (/\.(mp4|mov|avi|webm|m4v)$/.test(clean)) return "video";
+    if (/\.(mp3|wav|ogg|m4a|aac)$/.test(clean)) return "audio";
+    return "file";
+  }
+
+  function inferFormatFromPath(pathSegments = []) {
+    const joined = pathSegments.map((segment) => String(segment).toLowerCase()).join("/");
+    if (/(^|\/)(message|messages|text|letters?)(\/|$)/.test(joined)) return "message";
+    if (/(^|\/)(image|images|photo|photos|picture|pictures)(\/|$)/.test(joined)) return "image";
+    if (/(^|\/)(video|videos|clips?)(\/|$)/.test(joined)) return "video";
+    if (/(^|\/)(audio|audios|voice|voices|recordings?)(\/|$)/.test(joined)) return "audio";
+    if (/(^|\/)(file|files|docs|documents|attachments)(\/|$)/.test(joined)) return "file";
+    return "";
+  }
+
+  function inferEntryFormat(raw, pathSegments, attachments) {
+    const pathFormat = inferFormatFromPath(pathSegments);
+    if (pathFormat) return pathFormat;
+
+    if (!attachments.length) {
+      const message = findStringByCandidates(
+        raw,
+        ["message", "msg", "note", "letter", "futureMessage", "messageToFutureSelf", "Message", "Message to Future Self"],
+        ["message", "future self", "letter", "note"],
+      );
+      if (message) return "message";
+      return "entry";
+    }
+
+    const attachmentKinds = Array.from(new Set(attachments.map((item) => {
+      const mime = (item.type || "").toLowerCase();
+      if (mime.startsWith("image/")) return "image";
+      if (mime.startsWith("video/")) return "video";
+      if (mime.startsWith("audio/")) return "audio";
+      return inferTypeFromUrl(item.url);
+    })));
+
+    return attachmentKinds.length === 1 ? attachmentKinds[0] : "mixed";
+  }
+
+  function normalizeEntry(id, raw, pathSegments = []) {
     const name = findStringByCandidates(
       raw,
       ["name", "fullName", "fullname", "studentName", "senderName", "displayName", "submittedBy", "Name", "yourName"],
@@ -175,6 +219,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const parsed = new Date(isoDate || 0).getTime();
       return Number.isNaN(parsed) ? 0 : parsed;
     })();
+    const attachments = normalizeAttachments(raw);
 
     return {
       id,
@@ -182,12 +227,75 @@ document.addEventListener("DOMContentLoaded", () => {
       message,
       timestamp: isoDate || (sortTime ? new Date(sortTime).toISOString() : "No timestamp"),
       sortTime,
-      attachments: normalizeAttachments(raw),
+      attachments,
+      storagePath: pathSegments,
+      format: inferEntryFormat(raw, pathSegments, attachments),
     };
+  }
+
+  function nodeLooksLikeEntry(node) {
+    if (!node || typeof node !== "object" || Array.isArray(node)) return false;
+
+    const name = findStringByCandidates(
+      node,
+      ["name", "fullName", "fullname", "studentName", "senderName", "displayName", "submittedBy", "Name", "yourName"],
+      ["name", "submitted by", "sender", "full name", "student", "what is your name"],
+    );
+    const message = findStringByCandidates(
+      node,
+      ["message", "msg", "note", "letter", "futureMessage", "messageToFutureSelf", "Message", "Message to Future Self"],
+      ["message", "future self", "letter", "note"],
+    );
+    const timestamp = findStringByCandidates(node, ["timestamp", "createdAt", "submittedAt", "date", "time"], ["time", "date", "created"]);
+    const attachments = normalizeAttachments(node);
+
+    return Boolean(name || message || timestamp || attachments.length);
+  }
+
+  function collectEntries(node, pathSegments = [], out = []) {
+    if (!node) return out;
+
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => collectEntries(item, [...pathSegments, String(index)], out));
+      return out;
+    }
+
+    if (typeof node !== "object") return out;
+
+    if (nodeLooksLikeEntry(node)) {
+      const entryId = pathSegments.join("/") || `entry-${out.length + 1}`;
+      out.push(normalizeEntry(entryId, node, pathSegments));
+      return out;
+    }
+
+    Object.entries(node).forEach(([key, value]) => {
+      collectEntries(value, [...pathSegments, key], out);
+    });
+
+    return out;
   }
 
   function getNameKey(name) {
     return (name || "").trim().toLowerCase();
+  }
+
+  function getFormatLabel(format) {
+    switch (format) {
+      case "message":
+        return "Messages";
+      case "image":
+        return "Images";
+      case "video":
+        return "Videos";
+      case "audio":
+        return "Audio";
+      case "file":
+        return "Files";
+      case "mixed":
+        return "Mixed uploads";
+      default:
+        return "Other submissions";
+    }
   }
 
   function getDisplayItems() {
@@ -204,18 +312,39 @@ document.addEventListener("DOMContentLoaded", () => {
           name: trimmedName || "Unnamed contributor",
           sortTime: entry.sortTime,
           entries: [],
+          formats: new Map(),
         });
       }
 
       const bucket = grouped.get(groupKey);
       bucket.entries.push(entry);
       if (entry.sortTime > bucket.sortTime) bucket.sortTime = entry.sortTime;
+
+      const formatKey = entry.format || "entry";
+      if (!bucket.formats.has(formatKey)) {
+        bucket.formats.set(formatKey, {
+          key: formatKey,
+          label: getFormatLabel(formatKey),
+          entries: [],
+          sortTime: entry.sortTime,
+        });
+      }
+
+      const formatBucket = bucket.formats.get(formatKey);
+      formatBucket.entries.push(entry);
+      if (entry.sortTime > formatBucket.sortTime) formatBucket.sortTime = entry.sortTime;
     });
 
     return Array.from(grouped.values())
       .map((group) => ({
         ...group,
         entries: group.entries.sort((a, b) => b.sortTime - a.sortTime),
+        formats: Array.from(group.formats.values())
+          .map((formatGroup) => ({
+            ...formatGroup,
+            entries: formatGroup.entries.sort((a, b) => b.sortTime - a.sortTime),
+          }))
+          .sort((a, b) => b.sortTime - a.sortTime),
       }))
       .sort((a, b) => b.sortTime - a.sortTime);
   }
@@ -223,14 +352,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function getListLabel(item, index) {
     if (capsuleOpened) return item.name;
     return `Anonymous ${index + 1}`;
-  }
-
-  function inferTypeFromUrl(url) {
-    const clean = url.split("?")[0].split("#")[0].toLowerCase();
-    if (/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/.test(clean)) return "image";
-    if (/\.(mp4|mov|avi|webm|m4v)$/.test(clean)) return "video";
-    if (/\.(mp3|wav|ogg|m4a|aac)$/.test(clean)) return "audio";
-    return "file";
   }
 
   function renderAttachment(target, attachment) {
@@ -314,27 +435,54 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const selectedEntries = selectedItem.entries || [];
-    const allAttachments = [];
+    const summary = document.createElement("p");
+    summary.className = "entry-meta";
+    summary.textContent = `${selectedEntries.length} submission(s) across ${selectedItem.formats.length} folder(s).`;
+    entryDetail.appendChild(summary);
 
-    selectedEntries.forEach((entry, idx) => {
-      const meta = document.createElement("p");
-      meta.className = "entry-meta";
-      meta.textContent = `Submission ${idx + 1}: ${entry.timestamp}`;
-      entryDetail.appendChild(meta);
+    selectedItem.formats.forEach((formatGroup) => {
+      const section = document.createElement("section");
+      section.className = "entry-format-section";
 
-      const message = document.createElement("p");
-      message.textContent = entry.message || "No message provided.";
-      entryDetail.appendChild(message);
+      const heading = document.createElement("h6");
+      heading.textContent = formatGroup.label;
+      section.appendChild(heading);
 
-      allAttachments.push(...entry.attachments);
+      formatGroup.entries.forEach((entry, idx) => {
+        const card = document.createElement("div");
+        card.className = "entry-format-card";
+
+        const meta = document.createElement("p");
+        meta.className = "entry-meta";
+        const folderPath = entry.storagePath.length ? ` • ${entry.storagePath.join(" / ")}` : "";
+        meta.textContent = `Submission ${idx + 1}: ${entry.timestamp}${folderPath}`;
+        card.appendChild(meta);
+
+        if (entry.message) {
+          const message = document.createElement("p");
+          message.textContent = entry.message;
+          card.appendChild(message);
+        }
+
+        if (entry.attachments.length) {
+          const mediaWrap = document.createElement("div");
+          mediaWrap.className = "entry-media";
+          entry.attachments.forEach((attachment) => renderAttachment(mediaWrap, attachment));
+          card.appendChild(mediaWrap);
+        }
+
+        if (!entry.message && !entry.attachments.length) {
+          const emptyState = document.createElement("p");
+          emptyState.className = "muted";
+          emptyState.textContent = "This folder is present, but no displayable content was found.";
+          card.appendChild(emptyState);
+        }
+
+        section.appendChild(card);
+      });
+
+      entryDetail.appendChild(section);
     });
-
-    if (allAttachments.length) {
-      const mediaWrap = document.createElement("div");
-      mediaWrap.className = "entry-media";
-      allAttachments.forEach((attachment) => renderAttachment(mediaWrap, attachment));
-      entryDetail.appendChild(mediaWrap);
-    }
   }
 
   function renderEntriesList() {
@@ -359,7 +507,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const time = document.createElement("span");
       if (capsuleOpened) {
         const count = item.entries ? item.entries.length : 1;
-        time.textContent = `${count} submission(s)`;
+        const folderCount = item.formats ? item.formats.length : 1;
+        time.textContent = `${count} submission(s) • ${folderCount} folder(s)`;
       } else {
         time.textContent = item.timestamp;
       }
@@ -380,7 +529,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (capsuleOpened) {
       if (lockSection) lockSection.classList.add("hidden");
       if (capsuleStateTitle) capsuleStateTitle.textContent = "Opened Capsule — Names and Memories Revealed";
-      if (lockStatus) lockStatus.textContent = "The capsule is open. Names, messages, and media are now revealed.";
+      if (lockStatus) lockStatus.textContent = "The capsule is open. Names, messages, and media are now revealed in contributor folders.";
       return;
     }
 
@@ -457,11 +606,14 @@ document.addEventListener("DOMContentLoaded", () => {
       ref.once("value")
         .then((snapshot) => {
           const data = snapshot.val();
-          entries = data ? Object.entries(data).map(([id, raw]) => normalizeEntry(id, raw || {})) : [];
+          entries = data ? collectEntries(data) : [];
           entries.sort((a, b) => b.sortTime - a.sortTime);
 
           if (entries.length && !selectedEntryId) {
-            selectedEntryId = entries[0].id;
+            const firstEntryNameKey = getNameKey(entries[0].name);
+            selectedEntryId = capsuleOpened
+              ? (firstEntryNameKey ? `name:${firstEntryNameKey}` : `entry:${entries[0].id}`)
+              : entries[0].id;
           }
 
           renderEntriesList();
