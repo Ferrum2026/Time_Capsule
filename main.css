@@ -240,6 +240,10 @@ main{padding:16px}
 .entry-list-item.active{border-color:var(--accent);box-shadow:0 0 0 1px rgba(214,63,139,0.25) inset}
 .entry-detail-body p{margin:0 0 10px 0}
 .entry-meta{font-size:12px;color:var(--muted)}
+.entry-format-section{margin-top:18px;padding-top:18px;border-top:1px solid rgba(45,35,29,0.08)}
+.entry-format-section:first-of-type{margin-top:12px}
+.entry-format-section h6{margin:0 0 12px 0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#7d5a48}
+.entry-format-card{background:#fff;border:1px solid rgba(45,35,29,0.08);border-radius:12px;padding:12px;margin-bottom:12px;box-shadow:0 6px 18px rgba(45,35,29,0.05)}
 .entry-media{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
 .entry-media img,.entry-media video,.entry-media audio{width:100%;border-radius:8px;background:#f3efeb}
 .attachment-link{display:inline-block;padding:8px 10px;border-radius:8px;background:rgba(45,35,29,0.05);color:#a02e68;text-decoration:none}
