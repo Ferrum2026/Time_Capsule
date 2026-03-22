@@ -16,7 +16,7 @@ const firebaseConfig = {
 const appConfig = {
   // 1) EASIEST TIMER TO CHANGE.
   // Example: '2027-12-31T23:59:59'
-  revealIso: '2026-03-22T23:10:59',
+  revealIso: '2023-03-22T23:10:59',
 
   // 2) Set to true if you want to TEST the open vault immediately.
   forceOpenVault: false,
