@@ -107,6 +107,49 @@ document.addEventListener("DOMContentLoaded", () => {
     return null;
   }
 
+  function findDirectStringByCandidates(raw, exactKeys = [], fuzzyTerms = []) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
+
+    const loweredExact = exactKeys.map((key) => key.toLowerCase());
+    const loweredFuzzy = fuzzyTerms.map((term) => term.toLowerCase());
+    const exactMatches = [];
+    const fuzzyMatches = [];
+
+    objectEntriesCI(raw).forEach(([key, value]) => {
+      if (typeof value !== "string") return;
+      const trimmedValue = value.trim();
+      if (!trimmedValue) return;
+
+      const keyLower = key.toLowerCase();
+      if (loweredExact.includes(keyLower)) {
+        exactMatches.push(trimmedValue);
+        return;
+      }
+
+      if (loweredFuzzy.some((term) => keyLower.includes(term))) {
+        fuzzyMatches.push(trimmedValue);
+      }
+    });
+
+    return exactMatches[0] || fuzzyMatches[0] || "";
+  }
+
+  function findDirectNumberByCandidates(raw, keys = []) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+
+    const lowered = keys.map((key) => key.toLowerCase());
+    for (const [key, value] of objectEntriesCI(raw)) {
+      if (!lowered.includes(key.toLowerCase())) continue;
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+    }
+
+    return null;
+  }
+
   function flattenCandidateUrls(node, out = []) {
     if (!node) return out;
 
@@ -207,14 +250,23 @@ document.addEventListener("DOMContentLoaded", () => {
       ["name", "submitted by", "sender", "full name", "student", "what is your name"],
     );
 
-    const message = findStringByCandidates(
+    const message = findDirectStringByCandidates(
+      raw,
+      ["message", "msg", "note", "letter", "futureMessage", "messageToFutureSelf", "Message", "Message to Future Self"],
+      ["message", "future self", "letter", "note"],
+    ) || findStringByCandidates(
       raw,
       ["message", "msg", "note", "letter", "futureMessage", "messageToFutureSelf", "Message", "Message to Future Self"],
       ["message", "future self", "letter", "note"],
     );
 
-    const isoDate = findStringByCandidates(raw, ["timestamp", "createdAt", "submittedAt", "date", "time"], ["time", "date", "created"]);
-    const msDate = findNumberByCandidates(raw, ["timestampMs", "createdAtMs", "ts"]);
+    const isoDate = findDirectStringByCandidates(
+      raw,
+      ["timestamp", "createdAt", "submittedAt", "date", "time"],
+      ["time", "date", "created"],
+    ) || findStringByCandidates(raw, ["timestamp", "createdAt", "submittedAt", "date", "time"], ["time", "date", "created"]);
+    const msDate = findDirectNumberByCandidates(raw, ["timestampMs", "createdAtMs", "ts"])
+      ?? findNumberByCandidates(raw, ["timestampMs", "createdAtMs", "ts"]);
     const sortTime = msDate !== null ? msDate : (() => {
       const parsed = new Date(isoDate || 0).getTime();
       return Number.isNaN(parsed) ? 0 : parsed;
