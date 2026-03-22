@@ -1,6 +1,6 @@
 # Batch Time Capsule (static site)
 
-Dark-futuristic single-page site that reads entries from Firebase Realtime Database.
+Dark-futuristic single-page site that reads entries from Firebase Realtime Database and can now reveal them in contributor folders grouped by name and submission format.
 
 ## Files
 - index.html
@@ -8,6 +8,72 @@ Dark-futuristic single-page site that reads entries from Firebase Realtime Datab
 - firebase-config.js (replace with your Firebase config)
 - app.js
 - google-apps-script.js (paste into Google Sheets > Apps Script for the form)
+
+## Revised storage model
+
+If you want each contributor name and submission format to have its own folder, use this structure in **both** Google Drive and Firebase:
+
+```text
+Google Drive
+└── Time Capsule Root
+    └── Jane Doe
+        ├── message
+        ├── image
+        ├── video
+        ├── audio
+        └── file
+
+Firebase Realtime Database
+capsuleEntries/
+  jane-doe/
+    message/
+      -Nx123...
+        name: "Jane Doe"
+        message: "See you in 2030"
+        timestamp: "2026-03-21T10:00:00.000Z"
+        format: "message"
+        driveFolderUrl: "..."
+    image/
+      -Nx124...
+        name: "Jane Doe"
+        timestamp: "2026-03-21T10:00:00.000Z"
+        format: "image"
+        attachments:
+          - name: "grad-photo.jpg"
+            type: "image/jpeg"
+            url: "..."
+```
+
+The front-end in `app.js` now supports both the old flat structure and this nested folder-based structure.
+
+## What you need to change
+
+1. **Keep the site pointed at the same Firebase root path**
+   - `app.js` still reads from `capsuleEntries` by default.
+   - You do **not** need a new front-end route; you need a new nested data shape under that path.
+
+2. **Change the form ingestion script**
+   - Your Google Form / Sheet submit handler must stop writing every submission into one flat collection.
+   - Instead, it should:
+     - create or reuse a contributor folder using the submitted name,
+     - create or reuse a format subfolder (`message`, `image`, `video`, `audio`, or `file`),
+     - store/copy uploaded files into the correct Google Drive subfolder,
+     - write a matching entry into Firebase at `capsuleEntries/<name-slug>/<format>/...`.
+   - This repository now includes an example `google-apps-script.js` that does exactly that.
+
+3. **Make uploaded files publicly retrievable at reveal time**
+   - If you store only Google Drive links, the reveal site can only render them if viewers have permission.
+   - Safer options:
+     - make the copied files readable at reveal time, or
+     - store them in Firebase Storage and save public download URLs into the same nested Firebase record.
+
+4. **Use stable slugs for Firebase keys**
+   - Use `jane-doe` instead of raw names like `Jane Doe / Prefect` as the database key.
+   - Keep the original display name inside each record as `name`.
+
+5. **Keep the reveal lock separate from the storage layout**
+   - The vault opening logic is still date-based in `app.js`.
+   - The change is about where entries are stored and how they are organized after retrieval.
 
 ## Setup steps
 
@@ -24,53 +90,32 @@ Dark-futuristic single-page site that reads entries from Firebase Realtime Datab
        }
      }
      ```
-     (Important: after testing, tighten rules. Recommended final rule: only allow read to public at reveal time, and writes only from a server/service account.)
+     After testing, tighten these rules.
 
 2. **Edit `firebase-config.js`**
-   - Replace placeholders with your Firebase project's config (found in Project Settings -> General -> SDK).
+   - Replace placeholders with your Firebase project's config.
 
-3. **Google Form & Sheet**
-   - Create the Google Form with fields: `Name`, `Message` (long answer), `File Upload`.
-   - Responses -> linked Google Sheet.
-   - In the Sheet: Extensions > Apps Script -> paste `google-apps-script.js`, update `FIREBASE_DB_URL` and optionally `FIREBASE_PATH`.
-   - Save and set up a trigger: `onFormSubmit` -> `From spreadsheet` -> `On form submit`.
+3. **Set up the Google Form + Sheet**
+   - Create the Google Form with fields such as `Name`, `Message`, and `File Upload`.
+   - Link the responses to a Google Sheet.
+   - In the Sheet: Extensions > Apps Script -> paste `google-apps-script.js`.
+   - Update:
+     - `FIREBASE_DB_URL`
+     - `FIREBASE_ROOT_PATH` (if you do not want `capsuleEntries`)
+     - `DRIVE_ROOT_FOLDER_ID`
+   - Save and create the trigger: `onFormSubmit` -> `From spreadsheet` -> `On form submit`.
 
 4. **Deploy site**
    - Push repository to GitHub.
    - Enable GitHub Pages from repo Settings -> Pages -> Deploy from `main` branch (`/ (root)`).
    - Or host on Netlify/Vercel if preferred.
 
-5. **Security**
-   - After confirming pushes, update Realtime DB rules:
-     - Allow reads only when you want to open capsule (e.g., set `.read` to false until reveal).
-     - Or keep `.read` true and rely on front-end lock (less secure).
-   - Better: Keep DB `.read` false until reveal. When you're ready, change rules to allow `.read` true (public) or deploy a server that authenticates reads for viewers.
+5. **Reveal**
+   - Set `REVEAL_ISO` or your `window.__APP_CONFIG.revealIso` date.
+   - When the reveal opens, the site will read the nested records and show each contributor with grouped folders.
 
-6. **Reveal**
-   - Set `REVEAL_ISO` in `app.js` to your chosen reveal date.
-   - On reveal date, the site will automatically show entries.
+## Notes
 
-## Admin tips
-- Use a separate admin Firebase service account if you want to programmatically change rules later.
-- If files are large, consider storing them in Firebase Storage and saving download URLs in the Realtime DB.
-
-
-## Maintainer note: avoiding merge conflicts with multiple Codex PRs
-
-If you have multiple open PRs from the same work stream, merge conflicts are expected because each PR edits the same files (`index.html`, `app.js`, `main.css`).
-
-Recommended process:
-
-1. Keep only the **latest** PR open.
-2. Close older/superseded PRs without merging.
-3. Update the latest branch with the base branch (`main`) and resolve conflicts once:
-   ```bash
-   git fetch origin
-   git checkout <latest-pr-branch>
-   git merge origin/main
-   # resolve conflicts, test, commit
-   git push
-   ```
-4. Merge that single updated PR.
-
-This repository should be treated as "one active UI PR at a time" to prevent repeated conflicts.
+- The site will still anonymize entries while the vault is sealed.
+- Once opened, contributors are grouped by name, and their submissions are grouped by inferred folder/format.
+- If you prefer Firebase-only storage, skip the Drive copy step and write file URLs from Firebase Storage into the same nested structure.
