@@ -116,6 +116,6 @@ The front-end in `app.js` now supports both the old flat structure and this nest
 
 ## Notes
 
-- Contributor names remain visible even while the vault is sealed; only messages and files stay locked until reveal.
+- The site will still anonymize entries while the vault is sealed.
 - Once opened, contributors are grouped by name, and their submissions are grouped by inferred folder/format.
 - If you prefer Firebase-only storage, skip the Drive copy step and write file URLs from Firebase Storage into the same nested structure.
