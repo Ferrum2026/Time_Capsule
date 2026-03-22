@@ -6,7 +6,7 @@
 const firebaseConfig = {
   apiKey: 'AIzaSyB9ADMsJMGKO9jvUxpDdclVAHy4RZmileQ',
   authDomain: 'batchcapsule.firebaseapp.com',
-  databaseURL: 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app/submissions.json',
+  databaseURL: 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app/',
   projectId: 'batch capsule',
   storageBucket: 'batchcapsule.firebasestorage.app',
   messagingSenderId: '660821902563',
