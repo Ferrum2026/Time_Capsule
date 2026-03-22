@@ -22,7 +22,7 @@ const appConfig = {
   forceOpenVault: false,
 
   // 3) Optional fallback Google Form link for participants who are used to the old form.
-  googleFormUrl: '',
+  googleFormUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSdxraYeyrpC4zMC-EtXQg8xauGSrtsys34AU_bLf7MwOcB1vg/viewform',
 
   // 4) Firebase path where the website stores entries.
   firebasePath: 'capsuleEntries',
