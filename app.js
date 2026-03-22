@@ -353,6 +353,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function getDisplayItems() {
     if (!capsuleOpened) return entries;
 
+  function getDisplayItems() {
     const grouped = new Map();
     entries.forEach((entry) => {
       const trimmedName = (entry.name || "").trim();
@@ -468,19 +469,30 @@ document.addEventListener("DOMContentLoaded", () => {
     entryDetail.innerHTML = "";
 
     if (!capsuleOpened) {
+      const selectedEntries = selectedItem.entries || [];
+      const latestEntry = selectedEntries[0] || null;
+
       const meta = document.createElement("p");
       meta.className = "entry-meta";
-      meta.textContent = selectedItem.timestamp;
+      meta.textContent = latestEntry
+        ? `Latest submission: ${latestEntry.timestamp}`
+        : "No submissions yet.";
       entryDetail.appendChild(meta);
 
       const lockedMsg = document.createElement("p");
-      lockedMsg.textContent = "Identity, message, and files remain sealed until the reveal moment.";
+      lockedMsg.textContent = "Messages and files remain sealed until the reveal moment.";
       entryDetail.appendChild(lockedMsg);
 
-      if (selectedItem.attachments.length) {
+      const summary = document.createElement("p");
+      summary.className = "muted";
+      summary.textContent = `${selectedEntries.length} submission(s) stored for this contributor.`;
+      entryDetail.appendChild(summary);
+
+      const sealedAttachmentCount = selectedEntries.reduce((total, entry) => total + entry.attachments.length, 0);
+      if (sealedAttachmentCount) {
         const attachmentCount = document.createElement("p");
         attachmentCount.className = "muted";
-        attachmentCount.textContent = `${selectedItem.attachments.length} attachment(s) sealed in this memory.`;
+        attachmentCount.textContent = `${sealedAttachmentCount} attachment(s) remain sealed in this folder.`;
         entryDetail.appendChild(attachmentCount);
       }
       return;
@@ -540,7 +552,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderEntriesList() {
     if (!entriesList || !entryListTitle) return;
     entriesList.innerHTML = "";
-    entryListTitle.textContent = capsuleOpened ? "Contributors (grouped by name)" : "Contributors (anonymous)";
+    entryListTitle.textContent = capsuleOpened ? "Contributors (grouped by name)" : "Contributors (visible by name)";
 
     const displayItems = getDisplayItems();
     if (!displayItems.length) {
@@ -557,12 +569,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const name = document.createElement("strong");
       name.textContent = getListLabel(item, index);
       const time = document.createElement("span");
+      const count = item.entries ? item.entries.length : 1;
+      const folderCount = item.formats ? item.formats.length : 1;
       if (capsuleOpened) {
         const count = item.entries ? item.entries.length : 1;
         const folderCount = item.formats ? item.formats.length : 1;
         time.textContent = `${count} submission(s) • ${folderCount} folder(s)`;
       } else {
-        time.textContent = item.timestamp;
+        time.textContent = `${count} submission(s) stored`;
       }
 
       btn.appendChild(name);
@@ -586,7 +600,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (lockSection) lockSection.classList.remove("hidden");
-    if (capsuleStateTitle) capsuleStateTitle.textContent = "Sealed Capsule — Anonymous Directory";
+    if (capsuleStateTitle) capsuleStateTitle.textContent = "Sealed Capsule — Contributor Directory";
     if (lockStatus) lockStatus.textContent = "The contents are stored privately. They will be opened on the reveal date.";
   }
 
