@@ -4,25 +4,25 @@
 // =============================================
 
 const firebaseConfig = {
-  apiKey: 'PUT_YOUR_FIREBASE_API_KEY_HERE',
-  authDomain: 'PUT_YOUR_FIREBASE_AUTH_DOMAIN_HERE',
-  databaseURL: 'PUT_YOUR_FIREBASE_DATABASE_URL_HERE',
-  projectId: 'PUT_YOUR_FIREBASE_PROJECT_ID_HERE',
-  storageBucket: 'PUT_YOUR_FIREBASE_STORAGE_BUCKET_HERE',
-  messagingSenderId: 'PUT_YOUR_FIREBASE_MESSAGING_SENDER_ID_HERE',
-  appId: 'PUT_YOUR_FIREBASE_APP_ID_HERE'
+  apiKey: 'AIzaSyB9ADMsJMGKO9jvUxpDdclVAHy4RZmileQ',
+  authDomain: 'batchcapsule.firebaseapp.com',
+  databaseURL: 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app/submissions.json',
+  projectId: 'batch capsule',
+  storageBucket: 'batchcapsule.firebasestorage.app',
+  messagingSenderId: '660821902563',
+  appId: '1:660821902563:web:980ba4ae153fef1ce1f1d6'
 };
 
 const appConfig = {
   // 1) EASIEST TIMER TO CHANGE.
   // Example: '2027-12-31T23:59:59'
-  revealIso: '2027-12-31T23:59:59',
+  revealIso: '2026-03-22T23:10:59',
 
   // 2) Set to true if you want to TEST the open vault immediately.
   forceOpenVault: false,
 
   // 3) Paste your Google Form link here.
-  googleFormUrl: 'PASTE_YOUR_GOOGLE_FORM_LINK_HERE',
+  googleFormUrl: 'https://forms.gle/yD9CUwp6P9nmPTq58',
 
   // 4) Firebase path where the Google Form script will save entries.
   firebasePath: 'capsuleEntries',
@@ -33,7 +33,7 @@ const appConfig = {
     siteTagline: 'A locked digital vault for messages, photos, and memories.',
     vaultTitle: 'The Main Vault',
     vaultDescription: 'This vault opens when the countdown reaches zero. Once open, the submitted files and messages appear below.',
-    slogan: 'Write today. Open tomorrow.',
+    slogan: 'Cute nga batch.',
     quote: '“The best thing about memories is opening them again later.”',
 
     // Replace these with your own files.
