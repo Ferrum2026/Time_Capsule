@@ -1,121 +1,196 @@
-# Batch Time Capsule (static site)
+# Simple Time Capsule Template
 
-Dark-futuristic single-page site that reads entries from Firebase Realtime Database and can now reveal them in contributor folders grouped by name and submission format.
+This is a **clean and simple** version of the Time Capsule website.
 
-## Files
-- index.html
-- main.css
-- firebase-config.js (replace with your Firebase config)
-- app.js
-- google-apps-script.js (paste into Google Sheets > Apps Script for the form)
+It is made for people who want:
+- a locked vault with a countdown,
+- a Pinterest-style board layout,
+- easy spots for logo, images, and videos,
+- a Google Form submission link,
+- Google Drive folder creation for each person,
+- Firebase Realtime Database storage for messages.
 
-## Revised storage model
+---
 
-If you want each contributor name and submission format to have its own folder, use this structure in **both** Google Drive and Firebase:
+## 1. The easiest file to edit
 
-```text
-Google Drive
-└── Time Capsule Root
-    └── Jane Doe
-        ├── message
-        ├── image
-        ├── video
-        ├── audio
-        └── file
+Open this file first:
 
-Firebase Realtime Database
-capsuleEntries/
-  jane-doe/
-    message/
-      -Nx123...
-        name: "Jane Doe"
-        message: "See you in 2030"
-        timestamp: "2026-03-21T10:00:00.000Z"
-        format: "message"
-        driveFolderUrl: "..."
-    image/
-      -Nx124...
-        name: "Jane Doe"
-        timestamp: "2026-03-21T10:00:00.000Z"
-        format: "image"
-        attachments:
-          - name: "grad-photo.jpg"
-            type: "image/jpeg"
-            url: "..."
+- `firebase-config.js`
+
+This is your **main control panel**.
+
+Inside that file, you can easily change:
+- the reveal date and time,
+- the Google Form link,
+- the site title,
+- the slogan,
+- the quote,
+- the logo path,
+- the image paths,
+- the film video path,
+- the behind-the-scenes video path.
+
+### The timer line you will change most often
+
+```js
+revealIso: '2027-12-31T23:59:59'
 ```
 
-The front-end in `app.js` now supports both the old flat structure and this nested folder-based structure.
+If you want to test the open vault right away, change this:
 
-## What you need to change
+```js
+forceOpenVault: true
+```
 
-1. **Keep the site pointed at the same Firebase root path**
-   - `app.js` still reads from `capsuleEntries` by default.
-   - You do **not** need a new front-end route; you need a new nested data shape under that path.
+---
 
-2. **Change the form ingestion script**
-   - Your Google Form / Sheet submit handler must stop writing every submission into one flat collection.
-   - Instead, it should:
-     - create or reuse a contributor folder using the submitted name,
-     - create or reuse a format subfolder (`message`, `image`, `video`, `audio`, or `file`),
-     - store/copy uploaded files into the correct Google Drive subfolder,
-     - write a matching entry into Firebase at `capsuleEntries/<name-slug>/<format>/...`.
-   - This repository now includes an example `google-apps-script.js` that does exactly that.
+## 2. Where to put your own logo, images, and videos
 
-3. **Make uploaded files publicly retrievable at reveal time**
-   - If you store only Google Drive links, the reveal site can only render them if viewers have permission.
-   - Safer options:
-     - make the copied files readable at reveal time, or
-     - store them in Firebase Storage and save public download URLs into the same nested Firebase record.
+Use the folder:
 
-4. **Use stable slugs for Firebase keys**
-   - Use `jane-doe` instead of raw names like `Jane Doe / Prefect` as the database key.
-   - Keep the original display name inside each record as `name`.
+- `media/`
 
-5. **Keep the reveal lock separate from the storage layout**
-   - The vault opening logic is still date-based in `app.js`.
-   - The change is about where entries are stored and how they are organized after retrieval.
+Example files you can place there:
+- `media/my-logo.png`
+- `media/main-photo.jpg`
+- `media/day-one.jpg`
+- `media/batch-film.mp4`
+- `media/bts-loop.mp4`
 
-## Setup steps
+Then update `firebase-config.js` like this:
 
-1. **Create Firebase project**
-   - Go to https://console.firebase.google.com
-   - Create a new project (e.g., batch-capsule-2026)
-   - Enable **Realtime Database** and set location.
-   - Set database rules temporarily to allow writes from your Apps Script:
-     ```json
-     {
-       "rules": {
-         ".read": true,
-         ".write": true
-       }
-     }
-     ```
-     After testing, tighten these rules.
+```js
+logoPath: 'media/my-logo.png',
+heroImagePath: 'media/main-photo.jpg',
+throwbackImagePath: 'media/day-one.jpg',
+filmVideoPath: 'media/batch-film.mp4',
+behindScenesVideoPath: 'media/bts-loop.mp4'
+```
 
-2. **Edit `firebase-config.js`**
-   - Replace placeholders with your Firebase project's config.
+---
 
-3. **Set up the Google Form + Sheet**
-   - Create the Google Form with fields such as `Name`, `Message`, and `File Upload`.
-   - Link the responses to a Google Sheet.
-   - In the Sheet: Extensions > Apps Script -> paste `google-apps-script.js`.
-   - Update:
-     - `FIREBASE_DB_URL`
-     - `FIREBASE_ROOT_PATH` (if you do not want `capsuleEntries`)
-     - `DRIVE_ROOT_FOLDER_ID`
-   - Save and create the trigger: `onFormSubmit` -> `From spreadsheet` -> `On form submit`.
+## 3. What each file does
 
-4. **Deploy site**
-   - Push repository to GitHub.
-   - Enable GitHub Pages from repo Settings -> Pages -> Deploy from `main` branch (`/ (root)`).
-   - Or host on Netlify/Vercel if preferred.
+- `index.html` = the page structure.
+- `main.css` = the design and Pinterest board style.
+- `app.js` = countdown, lock state, and Firebase display.
+- `firebase-config.js` = the easy settings file.
+- `google-apps-script.js` = the Google Form automation script.
+- `media/README.md` = tells you where to drop your own files.
 
-5. **Reveal**
-   - Set `REVEAL_ISO` or your `window.__APP_CONFIG.revealIso` date.
-   - When the reveal opens, the site will read the nested records and show each contributor with grouped folders.
+---
 
-## Notes
+## 4. How the Google Form should work
 
-- The site will still anonymize entries while the vault is sealed.
-- Once opened, contributors are grouped by name, and their submissions are grouped by inferred folder/format.
-- If you prefer Firebase-only storage, skip the Drive copy step and write file URLs from Firebase Storage into the same nested structure.
+Your form should ask for:
+
+1. **Name**
+2. **Message to Future Self**
+3. **File Upload**
+
+### IMPORTANT name rule
+
+Tell users to type their name exactly like this:
+
+```text
+SURNAME_FIRSTNAME_MIDDLEINITIAL
+```
+
+Example:
+
+```text
+CRUZ_JUAN_P
+```
+
+> If you want to allow two surnames or more complex names, you can relax the rule later inside `google-apps-script.js`.
+
+---
+
+## 5. What the Google Apps Script does
+
+The file `google-apps-script.js` is ready to paste into Apps Script.
+
+When a person submits the form, it will:
+
+1. read the form answers,
+2. validate the name format,
+3. create a Google Drive folder using that exact name,
+4. copy uploaded files into that folder,
+5. save the message and file links into Firebase Realtime Database.
+
+---
+
+## 6. What you MUST replace in `google-apps-script.js`
+
+Search for these lines and replace them:
+
+```js
+const FIREBASE_DB_URL = 'https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com';
+const DRIVE_ROOT_FOLDER_ID = 'PUT_YOUR_GOOGLE_DRIVE_ROOT_FOLDER_ID_HERE';
+```
+
+---
+
+## 7. Firebase setup
+
+Create a Firebase project and enable **Realtime Database**.
+
+Then copy your config values into `firebase-config.js`.
+
+For quick testing, you can use simple rules like this:
+
+```json
+{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
+}
+```
+
+After testing, make your rules safer.
+
+---
+
+## 8. Recommended super-simple workflow
+
+### Step A
+Duplicate this repository into a **new GitHub repository**.
+
+### Step B
+Edit `firebase-config.js`.
+
+### Step C
+Put your logo/images/videos into `media/`.
+
+### Step D
+Paste `google-apps-script.js` into Google Apps Script.
+
+### Step E
+Connect the trigger to the Google Form response sheet.
+
+### Step F
+Deploy the site with GitHub Pages.
+
+---
+
+## 9. If you want to test everything quickly
+
+Use these temporary settings in `firebase-config.js`:
+
+```js
+forceOpenVault: true,
+filmVideoPath: 'media/batch-film.mp4',
+behindScenesVideoPath: 'media/bts-loop.mp4'
+```
+
+Then add your sample files into `media/`.
+
+---
+
+## 10. Final note
+
+This template is intentionally simple.
+
+It is built so you can copy it into a new repository, rename things, replace your media, and update one easy settings file without digging through lots of code.

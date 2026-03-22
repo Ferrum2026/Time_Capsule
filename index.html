@@ -3,139 +3,122 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Batch 2026 Digital Time Capsule</title>
+  <title>Simple Time Capsule Vault</title>
   <link rel="stylesheet" href="main.css" />
-  <meta name="theme-color" content="#0b0b0b" />
+  <meta name="theme-color" content="#121212" />
 </head>
-
 <body>
-  <div id="reveal-sequence" class="reveal-sequence hidden" aria-hidden="true">
-    <div class="crack-layer"></div>
-    <div class="crumble-layer"></div>
-    <div class="vault-stage">
-      <div class="vault-door"></div>
-    </div>
-  </div>
-
-  <header class="header">
-    <div class="brand">
-      <img id="batch-logo" src="assets/batch-logo-2026.svg" alt="Batch 2026 logo" class="logo" />
+  <header class="site-header">
+    <div class="brand-wrap">
+      <img id="site-logo" class="site-logo" src="assets/batch-logo-2026.svg" alt="Time Capsule logo" />
       <div>
-        <h1>Batch 2026 Digital Time Capsule</h1>
-        <p>Sealed memories • Reopen for the future</p>
+        <p class="eyebrow">EASY EDIT ZONE</p>
+        <h1 id="site-title">Simple Time Capsule Vault</h1>
+        <p id="site-tagline" class="site-tagline">A clean vault website with a locked reveal and a Pinterest-style board.</p>
       </div>
     </div>
-    <nav>
-      <a href="#capsule" class="nav-link">Capsule</a>
-      <a href="#film" class="nav-link">Batch Film</a>
-      <a href="#memories" class="nav-link">Memory Wall</a>
-      <a id="submit-link" class="btn ghost" href="https://docs.google.com/forms/d/e/1FAIpQLSdxraYeyrpC4zMC-EtXQg8xauGSrtsys34AU_bLf7MwOcB1vg/viewform?usp=header" target="_blank">Submit Memory</a>
-    </nav>
+    <a id="form-link-top" class="button primary" href="#" target="_blank" rel="noreferrer">Open Google Form</a>
   </header>
 
-  <main>
-    <section class="hero">
-      <div class="hero-inner">
-        <h2 class="hero-title">A vault for our future selves</h2>
-        <p class="hero-sub">
-          Send a message, photo, audio, or video. Everything will be sealed until opening day.
-        </p>
-        <div class="hero-cta">
-          <a id="cta-submit" class="btn" href="https://docs.google.com/forms/d/e/1FAIpQLSdxraYeyrpC4zMC-EtXQg8xauGSrtsys34AU_bLf7MwOcB1vg/viewform?usp=header" target="_blank">Send Your Memory</a>
-          <a id="cta-view" class="btn ghost" href="#capsule">Enter Capsule</a>
+  <main class="page-shell">
+    <section class="hero-card">
+      <div>
+        <p class="eyebrow">CHANGE THE DATE IN <code>firebase-config.js</code></p>
+        <h2 class="hero-title">The vault stays locked until the timer ends.</h2>
+        <p class="hero-copy">When the date arrives, the lock disappears and the memories from Firebase become visible on the website.</p>
+        <div class="countdown" id="countdown">
+          <div><span id="cd-days">00</span><small>Days</small></div>
+          <div><span id="cd-hours">00</span><small>Hours</small></div>
+          <div><span id="cd-minutes">00</span><small>Minutes</small></div>
+          <div><span id="cd-seconds">00</span><small>Seconds</small></div>
         </div>
       </div>
-      <div class="hero-visual">
-        <img id="batch-banner" class="capsule-visual banner-visual" src="assets/batch-banner-2026.svg" alt="Batch 2026 banner" />
+      <div class="vault-card">
+        <div class="vault-graphic">
+          <div class="vault-ring"></div>
+          <div class="vault-center">🔒</div>
+        </div>
+        <p id="reveal-date-label" class="reveal-date-label"></p>
       </div>
     </section>
 
-    <section id="capsule" class="capsule-section">
-      <div class="capsule-header">
-        <h3>Time Capsule</h3>
-        <p id="reveal-info">Reveal: <span id="reveal-date-text"></span></p>
-        <div id="countdown" class="countdown">
-          <div><span id="cd-days">00</span><small>days</small></div>
-          <div><span id="cd-hours">00</span><small>hrs</small></div>
-          <div><span id="cd-mins">00</span><small>mins</small></div>
-          <div><span id="cd-secs">00</span><small>secs</small></div>
+    <section class="board-grid">
+      <article class="pin-card lock-card featured-card">
+        <span class="pin-label">Main Vault</span>
+        <h3 id="vault-title">Batch Time Capsule Vault</h3>
+        <p id="vault-description">This is the main locked vault. After the reveal date, submitted files and messages will appear below.</p>
+        <div id="vault-state" class="vault-state locked">Vault is locked</div>
+      </article>
+
+      <article class="pin-card media-card">
+        <span class="pin-label">Looped Film</span>
+        <h3>Batch Film</h3>
+        <video id="film-video" class="media-frame" controls autoplay muted loop playsinline></video>
+        <p class="helper-text">Replace the path in <code>firebase-config.js</code> or swap the file inside your media folder.</p>
+      </article>
+
+      <article class="pin-card text-card accent-card">
+        <span class="pin-label">Slogan</span>
+        <h3 id="slogan-text">Your slogan goes here.</h3>
+      </article>
+
+      <article class="pin-card text-card quote-card">
+        <span class="pin-label">Quote</span>
+        <blockquote id="quote-text">“Your quote goes here.”</blockquote>
+      </article>
+
+      <article class="pin-card media-card">
+        <span class="pin-label">Main Image</span>
+        <h3>Editable Hero Image</h3>
+        <img id="hero-image" class="media-frame" src="assets/batch-banner-2026.svg" alt="Editable main visual" />
+      </article>
+
+      <article class="pin-card text-card form-card">
+        <span class="pin-label">Submit Here</span>
+        <h3>Google Form Link</h3>
+        <p>Use your Google Form so one person can submit many times using the required name format:</p>
+        <p class="name-format">SURNAME_FIRSTNAME_MIDDLEINITIAL</p>
+        <a id="form-link-board" class="button secondary" href="#" target="_blank" rel="noreferrer">Go to the form</a>
+      </article>
+
+      <article class="pin-card media-card">
+        <span class="pin-label">Behind The Scenes</span>
+        <h3>Looped BTS Video</h3>
+        <video id="bts-video" class="media-frame" controls autoplay muted loop playsinline></video>
+      </article>
+
+      <article class="pin-card media-card throwback-card">
+        <span class="pin-label">Throwback</span>
+        <h3>Day One Photo</h3>
+        <img id="throwback-image" class="media-frame" src="assets/batch-banner-2026.svg" alt="Throwback day one" />
+      </article>
+    </section>
+
+    <section class="entries-section">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">FIREBASE REVEAL AREA</p>
+          <h2>Submitted Memories</h2>
+        </div>
+        <p id="entries-help" class="entries-help">Locked right now. Visitors can only open this after the reveal date.</p>
+      </div>
+
+      <div id="locked-overlay" class="locked-overlay">
+        <div class="locked-overlay-box">
+          <div class="big-lock">🔐</div>
+          <h3>The vault is still sealed.</h3>
+          <p>Change the reveal date in <code>firebase-config.js</code> if you want to test the open state immediately.</p>
         </div>
       </div>
 
-      <div id="capsule-lock" class="capsule-lock">
-        <div class="lock-card">
-          <div class="lock-icon">🔒</div>
-          <h4>Capsule is sealed</h4>
-          <p id="lock-status">The contents are stored privately. They will be opened on the reveal date.</p>
-          <p class="muted">Contributor names stay visible while messages and files remain sealed.</p>
-        </div>
-      </div>
-
-      <div id="capsule-contents" class="capsule-contents">
-        <h4 id="capsule-state-title">Sealed Capsule — Contributor Directory</h4>
-        <div class="capsule-browser">
-          <aside class="entry-list-panel">
-            <h5 id="entry-list-title">Contributors</h5>
-            <div id="entries-list" class="entries-list"></div>
-          </aside>
-          <article class="entry-detail-panel">
-            <h5 id="entry-detail-title">Vault locked</h5>
-            <div id="entry-detail" class="entry-detail-body"></div>
-          </article>
-        </div>
-      </div>
+      <div id="entries-grid" class="entries-grid"></div>
     </section>
-
-    <section id="film" class="film-section">
-      <h3>Batch Film</h3>
-      <p>Official batch film (kept outside the sealed capsule).</p>
-      <div class="film-placeholder">
-        <img src="assets/batch-banner-2026.svg" alt="Batch 2026 film placeholder banner" />
-        <p class="muted">Film will be embedded here when ready.</p>
-      </div>
-    </section>
-
-    <section id="memories" class="memories-section">
-      <h3>Memory Wall</h3>
-      <p>Public archive styled like a pinboard: snapshots and highlights outside the sealed vault.</p>
-      <div class="mem-grid">
-        <article class="mem-card tall">
-          <span class="pin-tag">Campus</span>
-          <h4>Golden Hour at the Quadrangle</h4>
-          <p>One of the last sunsets before final submissions.</p>
-        </article>
-        <article class="mem-card short">
-          <span class="pin-tag">Quote</span>
-          <h4>"We made it."</h4>
-        </article>
-        <article class="mem-card medium">
-          <span class="pin-tag">Behind the scenes</span>
-          <h4>Film Team Check-in</h4>
-          <p>Storyboard drafts, coffee runs, and chaotic laughter.</p>
-        </article>
-        <article class="mem-card tall">
-          <span class="pin-tag">Throwback</span>
-          <h4>Day 1 Orientation</h4>
-          <p>From shy introductions to lifelong friendships.</p>
-        </article>
-        <article class="mem-card short accent">
-          <span class="pin-tag">Milestone</span>
-          <h4>100 Days Left</h4>
-        </article>
-        <article class="mem-card medium">
-          <span class="pin-tag">Event</span>
-          <h4>Cultural Night Highlights</h4>
-          <p>Traditional fits, dance rehearsals, and endless applause.</p>
-        </article>
-      </div>
-    </section>
-
-    <footer class="footer">
-      <p>Made by the Batch Publicitee Committee • Keep this site secret until the reveal.</p>
-    </footer>
   </main>
 
-  <!-- Firebase + Scripts -->
+  <footer class="site-footer">
+    <p>Built to be simple, editable, and easy to clone into a brand new GitHub repository.</p>
+  </footer>
+
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <script src="firebase-config.js"></script>
