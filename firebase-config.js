@@ -38,7 +38,7 @@ const appConfig = {
 
     // Replace these with your own files.
     // You can create a new folder in this project like media/ and drop your files there.
-    logoPath: 'BATCH FERRUM LOGO.png',
+    logoPath: 'media/BATCH FERRUM LOGO.png',
     heroImagePath: 'assets/batch-banner-2026.svg',
     throwbackImagePath: 'assets/batch-banner-2026.svg',
     filmVideoPath: '',
