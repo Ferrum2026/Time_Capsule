@@ -21,18 +21,18 @@ const appConfig = {
   // 2) Set to true if you want to TEST the open vault immediately.
   forceOpenVault: false,
 
-  // 3) Paste your Google Form link here.
-  googleFormUrl: 'https://forms.gle/yD9CUwp6P9nmPTq58',
+  // 3) Optional fallback Google Form link for participants who are used to the old form.
+  googleFormUrl: '',
 
-  // 4) Firebase path where the Google Form script will save entries.
+  // 4) Firebase path where the website stores entries.
   firebasePath: 'capsuleEntries',
 
   // 5) ALL THE WORDS AND FILES YOU WILL MOST LIKELY CHANGE.
   ui: {
     siteTitle: 'Your Batch Time Capsule',
-    siteTagline: 'A locked digital vault for messages, photos, and memories.',
+    siteTagline: 'A locked digital vault for messages, uploads, and memories.',
     vaultTitle: 'The Main Vault',
-    vaultDescription: 'This vault opens when the countdown reaches zero. Once open, the submitted files and messages appear below.',
+    vaultDescription: 'This vault opens when the countdown reaches zero. Once open, the submitted files and messages grouped by participant appear below.',
     slogan: 'Cute nga batch.',
     quote: '“The best thing about memories is opening them again later.”',
 
