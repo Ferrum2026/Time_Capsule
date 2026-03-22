@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const revealDate = new Date(config.revealIso || Date.now());
   const isForcedOpen = config.forceOpenVault === true;
   const firebasePath = config.firebasePath || 'capsuleEntries';
+  const legacyFormUrl = String(config.googleFormUrl || '').trim();
+  const namePattern = /^[A-Za-z][A-Za-z' -]*_[A-Za-z][A-Za-z' -]*_[A-Za-z](\.[A-Za-z])?\.?$/;
 
   const els = {
     title: document.getElementById('site-title'),
@@ -23,12 +25,19 @@ document.addEventListener('DOMContentLoaded', () => {
     heroImage: document.getElementById('hero-image'),
     throwbackImage: document.getElementById('throwback-image'),
     formLinkTop: document.getElementById('form-link-top'),
-    formLinkBoard: document.getElementById('form-link-board'),
+    legacyFormLinkTop: document.getElementById('legacy-form-link-top'),
+    legacyFormLinkBoard: document.getElementById('legacy-form-link-board'),
+    legacyFormHelp: document.getElementById('legacy-form-help'),
     siteLogo: document.getElementById('site-logo'),
     days: document.getElementById('cd-days'),
     hours: document.getElementById('cd-hours'),
     minutes: document.getElementById('cd-minutes'),
     seconds: document.getElementById('cd-seconds'),
+    form: document.getElementById('capsule-form'),
+    nameInput: document.getElementById('name-input'),
+    messageInput: document.getElementById('message-input'),
+    filesInput: document.getElementById('files-input'),
+    formStatus: document.getElementById('form-status'),
   };
 
   const ui = config.ui || {};
@@ -43,19 +52,38 @@ document.addEventListener('DOMContentLoaded', () => {
   els.throwbackImage.src = (ui.throwbackImagePath || 'assets/batch-banner-2026.svg');
   setVideoSource(els.filmVideo, ui.filmVideoPath);
   setVideoSource(els.btsVideo, ui.behindScenesVideoPath);
-  setLink(els.formLinkTop, config.googleFormUrl);
-  setLink(els.formLinkBoard, config.googleFormUrl);
+  if (els.formLinkTop) {
+    els.formLinkTop.href = '#submission-form';
+  }
+  applyLegacyFormLinks(legacyFormUrl);
 
   els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
 
-  function setLink(element, url) {
-    if (!url) return;
-    element.href = url;
-  }
+  let database = null;
+  let storage = null;
 
   function setVideoSource(video, path) {
     if (!path) return;
     video.src = path;
+  }
+
+  function applyLegacyFormLinks(url) {
+    const links = [els.legacyFormLinkTop, els.legacyFormLinkBoard].filter(Boolean);
+    if (!url) {
+      links.forEach((link) => link.classList.add('hidden'));
+      if (els.legacyFormHelp) {
+        els.legacyFormHelp.classList.remove('hidden');
+      }
+      return;
+    }
+
+    links.forEach((link) => {
+      link.href = url;
+      link.classList.remove('hidden');
+    });
+    if (els.legacyFormHelp) {
+      els.legacyFormHelp.classList.add('hidden');
+    }
   }
 
   function formatDate(date) {
@@ -99,58 +127,74 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function normalizeFirebaseData(raw) {
-    if (!raw || typeof raw !== 'object') return [];
-    const result = [];
-
-    function visit(node, inheritedName = '') {
-      if (!node || typeof node !== 'object') return;
-
-      const directName = typeof node.name === 'string' && node.name.trim() ? node.name.trim() : inheritedName;
-      const message = typeof node.message === 'string' ? node.message.trim() : '';
-      const timestamp = typeof node.timestamp === 'string' ? node.timestamp : '';
-      const attachments = Array.isArray(node.attachments) ? node.attachments : [];
-      const hasEntryData = Boolean(directName || message || attachments.length);
-
-      if (hasEntryData && (message || attachments.length)) {
-        result.push({
-          name: directName || 'Unnamed submitter',
-          message,
-          timestamp,
-          attachments,
-        });
-      }
-
-      Object.values(node).forEach((value) => {
-        if (value && typeof value === 'object') {
-          visit(value, directName);
-        }
-      });
-    }
-
-    visit(raw, '');
-    return result;
+  function normalizeName(rawValue) {
+    return String(rawValue || '').trim().replace(/\s+/g, ' ');
   }
 
-  function renderEntries(entries) {
-    if (!entries.length) {
-      els.entriesGrid.innerHTML = '<article class="entry-card"><h3>No memories yet</h3><p class="entry-meta">When your Firebase data starts arriving, it will appear here.</p></article>';
+  function slugifyName(name) {
+    return normalizeName(name)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') || 'unnamed-participant';
+  }
+
+  function validateName(name) {
+    const normalized = normalizeName(name);
+    if (!namePattern.test(normalized)) {
+      throw new Error('Use this format: SURNAME_FIRST NAME_M.I');
+    }
+    return normalized;
+  }
+
+  function normalizeFirebaseData(raw) {
+    if (!raw || typeof raw !== 'object') return [];
+
+    return Object.entries(raw).map(([personKey, personNode]) => {
+      const submissions = personNode && personNode.submissions && typeof personNode.submissions === 'object'
+        ? Object.values(personNode.submissions)
+        : [];
+
+      submissions.sort((a, b) => {
+        const aTime = new Date(a.createdAt || 0).getTime();
+        const bTime = new Date(b.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+
+      return {
+        key: personKey,
+        displayName: personNode.displayName || 'Unnamed submitter',
+        submissionCount: submissions.length,
+        updatedAt: personNode.updatedAt || '',
+        submissions,
+      };
+    }).sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }
+
+  function renderEntries(people) {
+    if (!people.length) {
+      els.entriesGrid.innerHTML = '<article class="entry-card"><h3>No memories yet</h3><p class="entry-meta">When submissions start arriving, each participant will appear here once, with every repeat entry nested underneath.</p></article>';
       return;
     }
 
-    const html = entries.map((entry) => {
-      const mediaHtml = (entry.attachments || []).map((item) => renderAttachment(item)).join('');
-      return `
-        <article class="entry-card">
-          <h3>${escapeHtml(entry.name || 'Unnamed submitter')}</h3>
-          <p class="entry-meta">${escapeHtml(entry.timestamp || 'No timestamp saved')}</p>
-          ${entry.message ? `<p class="entry-message">${escapeHtml(entry.message)}</p>` : '<p class="entry-message">No text message for this entry.</p>'}
-          ${mediaHtml ? `<div class="entry-attachments">${mediaHtml}</div>` : ''}
-        </article>
-      `;
-    }).join('');
-
-    els.entriesGrid.innerHTML = html;
+    els.entriesGrid.innerHTML = people.map((person) => `
+      <article class="entry-card person-card">
+        <div class="person-card-header">
+          <div>
+            <h3>${escapeHtml(person.displayName)}</h3>
+            <p class="entry-meta">${person.submissionCount} submission${person.submissionCount === 1 ? '' : 's'}${person.updatedAt ? ` • Last updated ${escapeHtml(formatDate(new Date(person.updatedAt)))}` : ''}</p>
+          </div>
+        </div>
+        <div class="submission-list">
+          ${person.submissions.map((entry) => `
+            <section class="submission-item">
+              <p class="entry-meta">${escapeHtml(formatDate(new Date(entry.createdAt || Date.now())))}</p>
+              <p class="entry-message">${escapeHtml(entry.message || 'No text message for this entry.')}</p>
+              ${(entry.attachments || []).length ? `<div class="entry-attachments">${entry.attachments.map((item) => renderAttachment(item)).join('')}</div>` : '<p class="entry-meta">No files uploaded for this submission.</p>'}
+            </section>
+          `).join('')}
+        </div>
+      </article>
+    `).join('');
   }
 
   function renderAttachment(item) {
@@ -184,9 +228,88 @@ document.addEventListener('DOMContentLoaded', () => {
     return escapeHtml(value);
   }
 
+  function setStatus(message, type) {
+    els.formStatus.textContent = message;
+    els.formStatus.className = `form-status ${type || ''}`.trim();
+  }
+
+  async function uploadFiles(personKey, files) {
+    if (!files.length) return [];
+
+    const uploads = files.map(async (file) => {
+      const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const path = `${firebasePath}/${personKey}/${safeName}`;
+      const snapshot = await storage.ref(path).put(file);
+      const url = await snapshot.ref.getDownloadURL();
+      return {
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        size: file.size || 0,
+        path,
+        url,
+      };
+    });
+
+    return Promise.all(uploads);
+  }
+
+  async function handleFormSubmit(event) {
+    event.preventDefault();
+
+    if (!database || !storage) {
+      setStatus('Firebase is not ready yet. Check your Firebase config first.', 'error');
+      return;
+    }
+
+    const submitButton = els.form.querySelector('button[type="submit"]');
+
+    try {
+      submitButton.disabled = true;
+      const displayName = validateName(els.nameInput.value);
+      const personKey = slugifyName(displayName);
+      const message = String(els.messageInput.value || '').trim();
+      const files = Array.from(els.filesInput.files || []);
+
+      if (!message) {
+        throw new Error('Please enter a short message before saving.');
+      }
+
+      setStatus(files.length ? 'Uploading files and saving your entry...' : 'Saving your entry...', 'loading');
+
+      const attachments = await uploadFiles(personKey, files);
+      const nowIso = new Date().toISOString();
+      const personRef = database.ref(`${firebasePath}/${personKey}`);
+      const newSubmissionRef = personRef.child('submissions').push();
+
+      await personRef.child('profile').set({
+        displayName,
+        normalizedName: personKey,
+      });
+
+      await personRef.update({
+        displayName,
+        updatedAt: nowIso,
+      });
+
+      await newSubmissionRef.set({
+        createdAt: nowIso,
+        message,
+        attachments,
+      });
+
+      els.form.reset();
+      setStatus('Saved successfully. Repeat submissions using the same name will stay under the same participant category.', 'success');
+    } catch (error) {
+      setStatus(error.message || 'Failed to save the entry.', 'error');
+    } finally {
+      submitButton.disabled = false;
+    }
+  }
+
   function loadEntries() {
     if (!firebaseConfig || !firebase || !firebase.apps) {
       renderEntries([]);
+      setStatus('Firebase config is missing. Add your project details in firebase-config.js.', 'error');
       return;
     }
 
@@ -194,7 +317,10 @@ document.addEventListener('DOMContentLoaded', () => {
       firebase.initializeApp(firebaseConfig);
     }
 
-    firebase.database().ref(firebasePath).on('value', (snapshot) => {
+    database = firebase.database();
+    storage = firebase.storage();
+
+    database.ref(firebasePath).on('value', (snapshot) => {
       const entries = normalizeFirebaseData(snapshot.val());
       renderEntries(entries);
     }, () => {
@@ -205,4 +331,5 @@ document.addEventListener('DOMContentLoaded', () => {
   updateCountdown();
   setInterval(updateCountdown, 1000);
   loadEntries();
+  els.form.addEventListener('submit', handleFormSubmit);
 });

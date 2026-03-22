@@ -1,196 +1,116 @@
 # Simple Time Capsule Template
 
-This is a **clean and simple** version of the Time Capsule website.
+This version includes a built-in **Firebase submission form** and an optional **old Google Form fallback link**.
 
-It is made for people who want:
-- a locked vault with a countdown,
-- a Pinterest-style board layout,
-- easy spots for logo, images, and videos,
-- a Google Form submission link,
-- Google Drive folder creation for each person,
-- Firebase Realtime Database storage for messages.
+Participants can:
+- enter their name using the required format `SURNAME_FIRST NAME_M.I`,
+- write a short message,
+- optionally upload any file type,
+- submit multiple times without creating duplicate person categories,
+- still open the old Google Form if you decide to keep it visible.
 
----
-
-## 1. The easiest file to edit
-
-Open this file first:
-
-- `firebase-config.js`
-
-This is your **main control panel**.
-
-Inside that file, you can easily change:
-- the reveal date and time,
-- the Google Form link,
-- the site title,
-- the slogan,
-- the quote,
-- the logo path,
-- the image paths,
-- the film video path,
-- the behind-the-scenes video path.
-
-### The timer line you will change most often
-
-```js
-revealIso: '2027-12-31T23:59:59'
-```
-
-If you want to test the open vault right away, change this:
-
-```js
-forceOpenVault: true
-```
+The website stores:
+- file uploads in **Firebase Storage**,
+- submission records in **Firebase Realtime Database**,
+- repeated submissions under the same participant key,
+- no Google Drive folders at all.
 
 ---
 
-## 2. Where to put your own logo, images, and videos
+## 1. Main files to edit
 
-Use the folder:
-
-- `media/`
-
-Example files you can place there:
-- `media/my-logo.png`
-- `media/main-photo.jpg`
-- `media/day-one.jpg`
-- `media/batch-film.mp4`
-- `media/bts-loop.mp4`
-
-Then update `firebase-config.js` like this:
-
-```js
-logoPath: 'media/my-logo.png',
-heroImagePath: 'media/main-photo.jpg',
-throwbackImagePath: 'media/day-one.jpg',
-filmVideoPath: 'media/batch-film.mp4',
-behindScenesVideoPath: 'media/bts-loop.mp4'
-```
+- `firebase-config.js` — Firebase project settings, reveal date, optional old Google Form URL, and UI text.
+- `index.html` — page structure including the participant form and fallback Google Form link.
+- `app.js` — countdown, form handling, Firebase upload logic, fallback Google Form toggle, and grouped entry rendering.
+- `main.css` — page styling.
 
 ---
 
-## 3. What each file does
+## 2. Required participant format
 
-- `index.html` = the page structure.
-- `main.css` = the design and Pinterest board style.
-- `app.js` = countdown, lock state, and Firebase display.
-- `firebase-config.js` = the easy settings file.
-- `google-apps-script.js` = the Google Form automation script.
-- `media/README.md` = tells you where to drop your own files.
-
----
-
-## 4. How the Google Form should work
-
-Your form should ask for:
-
-1. **Name**
-2. **Message to Future Self**
-3. **File Upload**
-
-### IMPORTANT name rule
-
-Tell users to type their name exactly like this:
+Participants must type their name like this:
 
 ```text
-SURNAME_FIRSTNAME_MIDDLEINITIAL
+SURNAME_FIRST NAME_M.I
 ```
 
 Example:
 
 ```text
-CRUZ_JUAN_P
+DELA CRUZ_JUAN_P.
 ```
 
-> If you want to allow two surnames or more complex names, you can relax the rule later inside `google-apps-script.js`.
+If they always reuse the same name format, all later submissions stay inside the same Firebase category.
 
 ---
 
-## 5. What the Google Apps Script does
+## 3. How the data is organized
 
-The file `google-apps-script.js` is ready to paste into Apps Script.
+Realtime Database path:
 
-When a person submits the form, it will:
+```text
+capsuleEntries/{person-slug}
+```
 
-1. read the form answers,
-2. validate the name format,
-3. create a Google Drive folder using that exact name,
-4. copy uploaded files into that folder,
-5. save the message and file links into Firebase Realtime Database.
+Each person node stores:
+- `displayName`
+- `updatedAt`
+- `profile`
+- `submissions/{autoId}`
+
+Each submission stores:
+- `createdAt`
+- `message`
+- `attachments[]`
+
+Uploaded files are stored in Firebase Storage under:
+
+```text
+capsuleEntries/{person-slug}/{timestamp-fileName}
+```
 
 ---
 
-## 6. What you MUST replace in `google-apps-script.js`
+## 4. Optional old Google Form link
 
-Search for these lines and replace them:
+If you still want to show the old Google Form for people who are already used to it, set this in `firebase-config.js`:
 
 ```js
-const FIREBASE_DB_URL = 'https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com';
-const DRIVE_ROOT_FOLDER_ID = 'PUT_YOUR_GOOGLE_DRIVE_ROOT_FOLDER_ID_HERE';
+googleFormUrl: 'https://forms.gle/your-old-link'
 ```
 
----
-
-## 7. Firebase setup
-
-Create a Firebase project and enable **Realtime Database**.
-
-Then copy your config values into `firebase-config.js`.
-
-For quick testing, you can use simple rules like this:
-
-```json
-{
-  "rules": {
-    ".read": true,
-    ".write": true
-  }
-}
-```
-
-After testing, make your rules safer.
+If `googleFormUrl` is blank, the fallback Google Form buttons stay hidden.
 
 ---
 
-## 8. Recommended super-simple workflow
+## 5. Firebase setup
 
-### Step A
-Duplicate this repository into a **new GitHub repository**.
+Enable these Firebase products:
+- **Realtime Database**
+- **Storage**
 
-### Step B
-Edit `firebase-config.js`.
+Then place your Firebase web config inside `firebase-config.js`.
 
-### Step C
-Put your logo/images/videos into `media/`.
-
-### Step D
-Paste `google-apps-script.js` into Google Apps Script.
-
-### Step E
-Connect the trigger to the Google Form response sheet.
-
-### Step F
-Deploy the site with GitHub Pages.
+For quick testing only, you can use open development rules.
+After testing, lock them down before real use.
 
 ---
 
-## 9. If you want to test everything quickly
+## 6. How to test quickly
 
-Use these temporary settings in `firebase-config.js`:
+In `firebase-config.js`, set:
 
 ```js
-forceOpenVault: true,
-filmVideoPath: 'media/batch-film.mp4',
-behindScenesVideoPath: 'media/bts-loop.mp4'
+forceOpenVault: true
 ```
 
-Then add your sample files into `media/`.
+Then open `index.html` through a local web server and submit a sample entry.
 
 ---
 
-## 10. Final note
+## 7. Notes
 
-This template is intentionally simple.
-
-It is built so you can copy it into a new repository, rename things, replace your media, and update one easy settings file without digging through lots of code.
+- The main submission flow is now Firebase-only.
+- The optional Google Form link is just a fallback shortcut and does not create Google Drive folders.
+- File uploads are saved first, then the submission record is written.
+- The reveal area groups entries by participant name instead of showing each submission as a separate top-level category.
