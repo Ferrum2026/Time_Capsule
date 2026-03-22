@@ -244,11 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function normalizeEntry(id, raw, pathSegments = []) {
-    const name = findDirectStringByCandidates(
-      raw,
-      ["name", "fullName", "fullname", "studentName", "senderName", "displayName", "submittedBy", "Name", "yourName"],
-      ["name", "submitted by", "sender", "full name", "student", "what is your name"],
-    ) || findStringByCandidates(
+    const name = findStringByCandidates(
       raw,
       ["name", "fullName", "fullname", "studentName", "senderName", "displayName", "submittedBy", "Name", "yourName"],
       ["name", "submitted by", "sender", "full name", "student", "what is your name"],
@@ -292,24 +288,20 @@ document.addEventListener("DOMContentLoaded", () => {
   function nodeLooksLikeEntry(node) {
     if (!node || typeof node !== "object" || Array.isArray(node)) return false;
 
-    const name = findDirectStringByCandidates(
+    const name = findStringByCandidates(
       node,
       ["name", "fullName", "fullname", "studentName", "senderName", "displayName", "submittedBy", "Name", "yourName"],
       ["name", "submitted by", "sender", "full name", "student", "what is your name"],
     );
-    const message = findDirectStringByCandidates(
+    const message = findStringByCandidates(
       node,
       ["message", "msg", "note", "letter", "futureMessage", "messageToFutureSelf", "Message", "Message to Future Self"],
       ["message", "future self", "letter", "note"],
     );
-    const timestamp = findDirectStringByCandidates(node, ["timestamp", "createdAt", "submittedAt", "date", "time"], ["time", "date", "created"]);
-    const timestampMs = findDirectNumberByCandidates(node, ["timestampMs", "createdAtMs", "ts"]);
+    const timestamp = findStringByCandidates(node, ["timestamp", "createdAt", "submittedAt", "date", "time"], ["time", "date", "created"]);
     const attachments = normalizeAttachments(node);
-    const hasNestedCollection = objectEntriesCI(node).some(([, value]) => value && typeof value === "object" && !Array.isArray(value));
 
-    if (name || message || timestamp || timestampMs !== null) return true;
-    if (attachments.length && !hasNestedCollection) return true;
-    return false;
+    return Boolean(name || message || timestamp || attachments.length);
   }
 
   function collectEntries(node, pathSegments = [], out = []) {
