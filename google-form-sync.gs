@@ -28,6 +28,8 @@ function onFormSubmit(e) {
   if (!e || !e.namedValues) {
     throw new Error('Missing event payload. Run from an installable form-submit trigger.');
   }
+  syncNamedValues(e.namedValues);
+}
 
   const displayName = normalizeName(readField(e.namedValues, FIREBASE_SYNC_CONFIG.nameField));
   const message = String(readField(e.namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
