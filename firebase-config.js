@@ -8,7 +8,7 @@ const firebaseConfig = {
   authDomain: 'batchcapsule.firebaseapp.com',
   databaseURL: 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app/',
   projectId: 'batchcapsule',
-  storageBucket: 'batchcapsule.firebasestorage.app',
+  storageBucket: 'batchcapsule.appspot.com',
   messagingSenderId: '660821902563',
   appId: '1:660821902563:web:980ba4ae153fef1ce1f1d6'
 };
