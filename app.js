@@ -5,8 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const revealDate = new Date(config.revealIso || Date.now());
   const isForcedOpen = parseBoolean(config.forceOpenVault);
   const firebasePath = config.firebasePath || 'capsuleEntries';
-  const driveSyncConfig = config.driveSync || {};
-  const isDriveSyncEnabled = parseBoolean(driveSyncConfig.enabled);
   const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
   const els = {
@@ -36,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     messageInput: document.getElementById('message-input'),
     filesInput: document.getElementById('files-input'),
     formStatus: document.getElementById('form-status'),
+    forceOpenHint: document.getElementById('force-open-hint'),
   };
 
   const ui = config.ui || {};
@@ -45,28 +44,35 @@ document.addEventListener('DOMContentLoaded', () => {
   els.quote.textContent = ui.quote || '“Your quote goes here.”';
   els.vaultTitle.textContent = ui.vaultTitle || 'Batch Time Capsule Vault';
   els.vaultDescription.textContent = ui.vaultDescription || 'This is the main locked vault. After the reveal date, submitted files and messages will appear below.';
-  els.siteLogo.src = (ui.logoPath || 'assets/batch-logo-2026.svg');
-  els.heroImage.src = (ui.heroImagePath || 'assets/batch-banner-2026.svg');
-  els.throwbackImage.src = (ui.throwbackImagePath || 'assets/batch-banner-2026.svg');
+  els.siteLogo.src = ui.logoPath || 'assets/batch-logo-2026.svg';
+  els.heroImage.src = ui.heroImagePath || 'assets/batch-banner-2026.svg';
+  els.throwbackImage.src = ui.throwbackImagePath || 'assets/batch-banner-2026.svg';
   setVideoSource(els.filmVideo, ui.filmVideoPath);
   setVideoSource(els.btsVideo, ui.behindScenesVideoPath);
+
   if (els.formLinkTop) {
     els.formLinkTop.href = '#submission-form';
   }
 
   els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
+  if (els.forceOpenHint) {
+    const state = isForcedOpen ? 'ENABLED' : 'DISABLED';
+    els.forceOpenHint.textContent = `forceOpenVault is currently ${state} in firebase-config.js`;
+    els.forceOpenHint.classList.toggle('is-enabled', isForcedOpen);
+  }
 
   let database = null;
+  let countdownTimer = null;
 
   function setVideoSource(video, path) {
-    if (!path) return;
+    if (!video || !path) return;
     video.src = path;
   }
 
   function formatDate(date) {
     if (Number.isNaN(date.getTime())) return 'Invalid date';
     return date.toLocaleString(undefined, {
-      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
   }
 
@@ -74,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof value === 'boolean') return value;
     if (typeof value === 'number') return value === 1;
     const normalized = String(value || '').trim().toLowerCase();
-    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
+    return ['true', '1', 'yes', 'on'].includes(normalized);
   }
 
   function isOpen() {
@@ -82,7 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateCountdown() {
-    const distance = revealDate.getTime() - Date.now();
+    const now = Date.now();
+    const distance = revealDate.getTime() - now;
     const safeDistance = Math.max(distance, 0);
     const days = Math.floor(safeDistance / (1000 * 60 * 60 * 24));
     const hours = Math.floor((safeDistance / (1000 * 60 * 60)) % 24);
@@ -95,14 +102,31 @@ document.addEventListener('DOMContentLoaded', () => {
     els.seconds.textContent = String(seconds).padStart(2, '0');
 
     applyVaultState();
+
+    if (!isOpen()) {
+      const remainder = now % 1000;
+      const waitMs = remainder === 0 ? 1000 : 1000 - remainder;
+      countdownTimer = window.setTimeout(updateCountdown, waitMs);
+    }
   }
 
   function applyVaultState() {
     if (isOpen()) {
-      els.vaultState.textContent = 'Vault is open';
+      els.vaultState.textContent = isForcedOpen ? 'Vault is open (forced)' : 'Vault is open';
       els.vaultState.className = 'vault-state open';
-      els.entriesHelp.textContent = 'The reveal date has passed. Submitted memories are now visible below.';
+      els.entriesHelp.textContent = isForcedOpen
+        ? 'Manual override is ON. The vault is open immediately regardless of the reveal timer.'
+        : 'The reveal date has passed. Submitted memories are now visible below.';
       els.lockedOverlay.classList.add('hidden');
+
+      if (countdownTimer) {
+        window.clearTimeout(countdownTimer);
+        countdownTimer = null;
+      }
+      els.days.textContent = '00';
+      els.hours.textContent = '00';
+      els.minutes.textContent = '00';
+      els.seconds.textContent = '00';
     } else {
       els.vaultState.textContent = 'Vault is locked';
       els.vaultState.className = 'vault-state locked';
@@ -138,11 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ? Object.values(personNode.submissions)
         : [];
 
-      submissions.sort((a, b) => {
-        const aTime = new Date(a.createdAt || 0).getTime();
-        const bTime = new Date(b.createdAt || 0).getTime();
-        return bTime - aTime;
-      });
+      submissions.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
       return {
         key: personKey,
@@ -182,12 +202,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderAttachment(item) {
-    const dataUrl = item && item.dataUrl ? item.dataUrl : '';
-    const url = item && item.url ? item.url : '';
-    const downloadUrl = item && item.downloadUrl ? item.downloadUrl : '';
-    const type = (item && item.type ? item.type : '').toLowerCase();
-    const name = item && item.name ? item.name : 'Open file';
-    const mediaUrl = dataUrl || downloadUrl || url;
+    const mediaUrl = item?.dataUrl || item?.downloadUrl || item?.url || '';
+    const type = String(item?.type || '').toLowerCase();
+    const name = item?.name || 'Open file';
     if (!mediaUrl) return '';
 
     if (type.startsWith('image/')) {
@@ -220,46 +237,6 @@ document.addEventListener('DOMContentLoaded', () => {
     els.formStatus.className = `form-status ${type || ''}`.trim();
   }
 
-  async function withTimeout(taskPromise, timeoutMs, timeoutMessage) {
-    let timeoutId = null;
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
-    });
-
-    try {
-      return await Promise.race([taskPromise, timeoutPromise]);
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
-    }
-  }
-
-  function readFileAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result || '');
-      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function buildAttachmentPayloads(files) {
-    const payloads = files.map(async (file) => {
-      const dataUrl = await withTimeout(
-        readFileAsDataUrl(file),
-        30000,
-        `Reading file timed out: ${file.name}`
-      );
-      return {
-        name: file.name,
-        type: file.type || 'application/octet-stream',
-        size: file.size || 0,
-        dataUrl,
-      };
-    });
-
-    return Promise.all(payloads);
-  }
-
   async function handleFormSubmit(event) {
     event.preventDefault();
 
@@ -284,11 +261,20 @@ document.addEventListener('DOMContentLoaded', () => {
       setStatus('Preparing files and saving everything to Firebase Realtime Database...', 'loading');
 
       const nowIso = new Date().toISOString();
-      const attachments = files.length ? await buildAttachmentPayloads(files) : [];
+      const attachments = [];
+      for (const file of files) {
+        attachments.push({
+          name: file.name,
+          type: file.type || 'application/octet-stream',
+          size: file.size || 0,
+          dataUrl: await readFileAsDataUrl(file),
+        });
+      }
+
       const personRef = database.ref(`${firebasePath}/${personKey}`);
       const newSubmissionRef = personRef.child('submissions').push();
 
-      await withTimeout(Promise.all([
+      await Promise.all([
         personRef.child('profile').set({
           displayName,
           normalizedName: personKey,
@@ -302,45 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
           message,
           attachments,
         })
-      ]), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
-
-      let uploadWarning = '';
-      if (files.length && storage) {
-        try {
-          setStatus('Database saved. Uploading files to Firebase Storage...', 'loading');
-          const attachments = await uploadFiles(personKey, submissionKey, files);
-          const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
-            displayName,
-            normalizedName: personKey,
-            createdAt: nowIso,
-            message,
-            attachments,
-          });
-          await withTimeout(newSubmissionRef.update({
-            attachments,
-            storageManifest: manifest,
-          }), 30000, 'Database update timed out while attaching uploaded files.');
-
-          if (isDriveSyncEnabled && attachments.length) {
-            setStatus('Files uploaded to Firebase. Mirroring copies to Google Drive...', 'loading');
-            await syncSubmissionToDrive({
-              personKey,
-              displayName,
-              normalizedName: personKey,
-              createdAt: nowIso,
-              message,
-              attachments,
-            });
-
-            await withTimeout(newSubmissionRef.update({
-              attachments,
-              storageManifest: manifest,
-            }), 30000, 'Failed to attach uploaded file metadata to the submission.');
-          } catch (uploadError) {
-            uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
-          }
-        }
-      }
+      ]);
 
       els.form.reset();
       setStatus('Saved successfully to Firebase Realtime Database.', 'success');
@@ -351,7 +299,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function loadEntries() {
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result || '');
+      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function initializeFirebase() {
     if (!firebaseConfig || typeof firebase === 'undefined' || !firebase.apps) {
       throw new Error('Firebase config is missing. Add your project details in firebase-config.js.');
     }
@@ -360,12 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
       firebase.initializeApp(firebaseConfig);
     }
 
-      database = firebase.database();
-    } catch (error) {
-      renderEntries([]);
-      setStatus(`Firebase initialization failed: ${error.message || 'Unknown error'}`, 'error');
-      return;
-    }
+    database = firebase.database();
   }
 
   function subscribeToEntries() {
@@ -380,9 +332,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  async function startApp() {
+  function startApp() {
     try {
-      await initializeFirebase();
+      initializeFirebase();
       subscribeToEntries();
     } catch (error) {
       renderEntries([]);
@@ -391,7 +343,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   updateCountdown();
-  setInterval(updateCountdown, 1000);
   startApp();
   els.form.addEventListener('submit', handleFormSubmit);
 });
