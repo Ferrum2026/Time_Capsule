@@ -10,7 +10,7 @@ Participants can:
 - still open the old Google Form if you decide to keep it visible.
 
 The website stores:
-- file uploads in **Firebase Storage**,
+- every submission payload (`submission.json`) and file uploads in **Firebase Storage**,
 - submission records in **Firebase Realtime Database**,
 - repeated submissions under the same participant key,
 - no Google Drive folders at all.
@@ -28,7 +28,7 @@ The website stores:
 
 ## 2. Required participant format
 
-Participants must type their name like this:
+Participants must type their name in UPPERCASE exactly like this:
 
 ```text
 SURNAME_FIRST NAME_M.I
@@ -62,11 +62,18 @@ Each submission stores:
 - `createdAt`
 - `message`
 - `attachments[]`
+- `storageManifest` (path + URL of the JSON snapshot in Storage)
 
-Uploaded files are stored in Firebase Storage under:
+Firebase Storage stores files under:
 
 ```text
-capsuleEntries/{person-slug}/{timestamp-fileName}
+capsuleEntries/{person-slug}/{submissionKey}/files/{timestamp-fileName}
+```
+
+Each submission also writes a JSON snapshot to:
+
+```text
+capsuleEntries/{person-slug}/{submissionKey}/submission.json
 ```
 
 ---
