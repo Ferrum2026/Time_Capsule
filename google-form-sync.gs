@@ -11,15 +11,9 @@
 const FIREBASE_SYNC_CONFIG = {
   // Realtime Database URL (no trailing slash)
   databaseUrl: 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app',
-
-  // Parent path in Realtime Database
+  storageBucket: 'batchcapsule.firebasestorage.app',
   firebasePath: 'capsuleEntries',
-
-  // Optional. If your DB rules require auth, set your database secret here.
-  // Leave blank to use ScriptApp OAuth token.
   databaseSecret: '',
-
-  // Google Form question titles (must match exactly)
   nameField: 'Full name',
   messageField: 'Message to your future self'
 };
@@ -108,7 +102,6 @@ function firebaseRequest(method, path, payload) {
     ? `auth=${encodeURIComponent(secret)}`
     : `access_token=${encodeURIComponent(ScriptApp.getOAuthToken())}`;
   const url = `${base}/${path}.json?${authQuery}`;
-
   const response = UrlFetchApp.fetch(url, {
     method,
     contentType: 'application/json',
@@ -122,4 +115,23 @@ function firebaseRequest(method, path, payload) {
   }
 
   return JSON.parse(response.getContentText() || 'null');
+}
+
+function readField(namedValues, fieldName) {
+  const value = namedValues[fieldName] || namedValues[String(fieldName || '').trim()];
+  if (!value || !value.length) {
+    throw new Error(`Missing form field: ${fieldName}`);
+  }
+  return String(value[0] || '').trim();
+}
+
+function normalizeName(rawValue) {
+  return String(rawValue || '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+function slugifyName(name) {
+  return normalizeName(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'unnamed-participant';
 }
