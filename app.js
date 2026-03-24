@@ -201,20 +201,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderAttachment(item) {
     const url = item && item.url ? item.url : '';
+    const previewUrl = item && item.previewUrl ? item.previewUrl : '';
+    const downloadUrl = item && item.downloadUrl ? item.downloadUrl : '';
     const type = (item && item.type ? item.type : '').toLowerCase();
     const name = item && item.name ? item.name : 'Open file';
     if (!url) return '';
+    const mediaUrl = previewUrl || downloadUrl || url;
 
     if (type.startsWith('image/')) {
-      return `<img src="${escapeAttribute(url)}" alt="${escapeAttribute(name)}">`;
+      return `<a class="entry-link" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer"><img src="${escapeAttribute(mediaUrl)}" alt="${escapeAttribute(name)}"></a>`;
     }
     if (type.startsWith('video/')) {
-      return `<video controls src="${escapeAttribute(url)}"></video>`;
+      return `<video controls src="${escapeAttribute(mediaUrl)}"></video>`;
     }
     if (type.startsWith('audio/')) {
-      return `<audio controls src="${escapeAttribute(url)}"></audio>`;
+      return `<audio controls src="${escapeAttribute(mediaUrl)}"></audio>`;
     }
-    return `<a class="entry-link" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(name)}</a>`;
+    return `<a class="entry-link" href="${escapeAttribute(downloadUrl || url)}" target="_blank" rel="noreferrer">${escapeHtml(name)}</a>`;
   }
 
   function escapeHtml(value) {
@@ -318,6 +321,42 @@ document.addEventListener('DOMContentLoaded', () => {
       const newSubmissionRef = personRef.child('submissions').push();
       const submissionKey = newSubmissionRef.key || `submission-${Date.now()}`;
 
+      await withTimeout(personRef.update({
+        displayName,
+        updatedAt: nowIso,
+        profile: {
+          displayName,
+          normalizedName: personKey,
+        }
+      }), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
+
+      await withTimeout(newSubmissionRef.set({
+        createdAt: nowIso,
+        message,
+        attachments: [],
+        storageManifest: null,
+      }), 30000, 'Submission write timed out. Check Firebase Realtime Database rules and try again.');
+
+      let uploadWarning = '';
+      if (files.length && storage) {
+        try {
+          setStatus('Database saved. Uploading files to Firebase Storage...', 'loading');
+          const attachments = await uploadFiles(personKey, submissionKey, files);
+          const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+            displayName,
+            normalizedName: personKey,
+            createdAt: nowIso,
+            message,
+            attachments,
+          });
+          await withTimeout(newSubmissionRef.update({
+            attachments,
+            storageManifest: manifest,
+          }), 30000, 'Database update timed out while attaching uploaded files.');
+        } catch (uploadError) {
+          uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
+        }
+      }
       await withTimeout(Promise.all([
         personRef.child('profile').set({
           displayName,
