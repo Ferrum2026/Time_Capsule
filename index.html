@@ -19,7 +19,7 @@
     </div>
     <div class="header-actions">
       <a id="form-link-top" class="button primary" href="#submission-form">Open Submission Form</a>
-      <a id="legacy-form-link-top" class="button ghost hidden" href="#" target="_blank" rel="noreferrer">Old Google Form</a>
+      
     </div>
   </header>
 
@@ -28,7 +28,7 @@
       <div>
         <p class="eyebrow">CHANGE THE DATE IN <code>firebase-config.js</code></p>
         <h2 class="hero-title">The vault stays locked until the timer ends.</h2>
-        <p class="hero-copy">Participants can submit a short message plus any file uploads now. Everything is grouped by the participant name, so repeat submissions stay inside the same person folder in Firebase. The old Google Form can also stay available as a backup link for people already used to it.</p>
+        <p class="hero-copy">Participants can submit a short message plus any file uploads now. Everything is grouped by participant name, and each submission stores the message plus file data directly in Firebase Realtime Database.</p>
         <div class="countdown" id="countdown">
           <div><span id="cd-days">00</span><small>Days</small></div>
           <div><span id="cd-hours">00</span><small>Hours</small></div>
@@ -71,18 +71,16 @@
             Upload files (optional)
             <input id="files-input" name="attachments" type="file" multiple />
           </label>
-          <button type="submit" class="button secondary submit-button">Save to Firebase</button>
+          <button type="submit" class="button secondary submit-button">Save to Firebase DB</button>
           <p id="form-status" class="form-status" aria-live="polite"></p>
         </form>
       </article>
 
       <article class="pin-card text-card form-card legacy-form-card">
-        <span class="pin-label">Backup Option</span>
-        <h3>Old Google Form</h3>
-        <p>If some participants are already used to the old Google Form, you can keep that link visible here as a backup only.</p>
-        <p class="helper-text"><strong>Important:</strong> Google Form submissions do not automatically sync to this Firebase board. Use the form above to save directly to Firebase.</p>
-        <a id="legacy-form-link-board" class="button ghost hidden" href="#" target="_blank" rel="noreferrer">Open old Google Form</a>
-        <p id="legacy-form-help" class="helper-text">Set <code>googleFormUrl</code> in <code>firebase-config.js</code> to show this fallback link.</p>
+        <span class="pin-label">Storage Priority</span>
+        <h3>Files Stored in DB</h3>
+        <p>Google Forms are currently on hold. The active flow stores the name, message, and uploaded file payloads together in Firebase Realtime Database.</p>
+        <p class="helper-text">All file uploads are saved in the same database submission record for simpler retrieval.</p>
       </article>
 
       <article class="pin-card media-card">
@@ -155,7 +153,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script src="app.js"></script>
 </body>

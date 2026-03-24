@@ -21,21 +21,10 @@ const appConfig = {
   // 2) Set to true if you want to TEST the open vault immediately.
   forceOpenVault: true,
 
-  // 3) Optional fallback Google Form link for participants who are used to the old form.
-  googleFormUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSdxraYeyrpC4zMC-EtXQg8xauGSrtsys34AU_bLf7MwOcB1vg/viewform',
-
-  // 4) Firebase path where the website stores entries.
+  // 3) Firebase path where the website stores entries.
   firebasePath: 'capsuleEntries',
 
-  // 4.1) Optional Google Drive sync webhook.
-  // Deploy the provided Apps Script web app and paste its /exec URL here.
-  driveSync: {
-    enabled: false,
-    webhookUrl: 'https://drive.google.com/drive/folders/1htzzZSJ8YUG2EsxqEFttrW5_ndU89d4-D4XjGaXVSqOl6mbOO_gSHSa1Az6QmHG-fgOVY2fZ?fbclid=IwY2xjawQs455leHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEeciJgqamRt3CPVYlZ798-4o_m9AvmKiltq4NvUJ4gpp-oMAgPI7LRZJFcU-k_aem_jrqb4vnUGfNSOd3UhNDDjA',
-    apiKey: 'AIzaSyB9ADMsJMGKO9jvUxpDdclVAHy4RZmileQ'
-  },
-
-  // 5) ALL THE WORDS AND FILES YOU WILL MOST LIKELY CHANGE.
+  // 4) ALL THE WORDS AND FILES YOU WILL MOST LIKELY CHANGE.
   ui: {
     siteTitle: 'Your Batch Time Capsule',
     siteTagline: 'A locked digital vault for messages, uploads, and memories.',
