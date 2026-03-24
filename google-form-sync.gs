@@ -16,12 +16,14 @@ const FIREBASE_SYNC_CONFIG = {
   firebasePath: 'capsuleEntries',
   databaseSecret: '',
   nameField: 'Full name',
-  messageField: 'Message to your future self'
-};
+  messageField: 'Message to your future self',
 
 // Required strict format: SURNAME_FIRST NAME_M.I
 const STRICT_NAME_PATTERN = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
+/**
+ * Trigger entrypoint (real form submit).
+ */
 function onFormSubmit(e) {
   if (!e || !e.namedValues) {
     throw new Error('Missing event payload. Run from an installable form-submit trigger.');
@@ -36,6 +38,8 @@ function onFormSubmit(e) {
   if (!message) {
     throw new Error('Message is required.');
   }
+  syncNamedValues(e.namedValues);
+}
 
   const nowIso = new Date().toISOString();
   const personKey = slugifyName(displayName);
@@ -84,12 +88,15 @@ function slugifyName(name) {
     .replace(/(^-|-$)/g, '') || 'unnamed-participant';
 }
 
-function firebasePut(path, payload) {
-  return firebaseRequest('put', path, payload);
+function normalizeName(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
 }
 
-function firebasePatch(path, payload) {
-  return firebaseRequest('patch', path, payload);
+function slugify(value) {
+  return normalizeName(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'unnamed-participant';
 }
 
 function firebasePost(path, payload) {
