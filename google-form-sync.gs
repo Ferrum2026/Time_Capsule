@@ -1,85 +1,93 @@
 /**
- * SIMPLE Google Form -> Firebase Realtime Database sync (ES5-compatible).
+ * Simple Google Form -> Firebase Realtime Database sync.
  *
- * Install trigger:
- * - Function: onFormSubmit
- * - Event source: From form
- * - Event type: On form submit
- *
- * Manual editor test:
- * - Run syncLatestResponse() (NOT onFormSubmit)
+ * How it works:
+ * - Runs immediately on each Form submit (installable trigger required).
+ * - Groups repeat submissions under the same person key when the same name format is used.
+ * - Stores every submission in:
+ *   capsuleEntries/{person-slug}/submissions/{autoId}
  */
 
-var CONFIG = {
+const FIREBASE_SYNC_CONFIG = {
+  // Realtime Database URL (no trailing slash)
   databaseUrl: 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app',
+
+  // Parent path in Realtime Database
   firebasePath: 'capsuleEntries',
+  databaseSecret: '',
   nameField: 'Full name',
   messageField: 'Message to your future self',
-  databaseSecret: '' // optional
-};
 
+// Required strict format: SURNAME_FIRST NAME_M.I
+const STRICT_NAME_PATTERN = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
+
+/**
+ * Trigger entrypoint (real form submit).
+ */
 function onFormSubmit(e) {
   if (!e || !e.namedValues) {
-    throw new Error('No event payload. Do NOT run onFormSubmit manually. Use syncLatestResponse() for testing.');
+    throw new Error('Missing event payload. Run from an installable form-submit trigger.');
   }
   syncNamedValues(e.namedValues);
 }
 
-function syncLatestResponse() {
-  var form = FormApp.getActiveForm();
-  if (!form) throw new Error('No active Form found. Bind script to a Form.');
+  const displayName = normalizeName(readField(e.namedValues, FIREBASE_SYNC_CONFIG.nameField));
+  const message = String(readField(e.namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
 
-  var responses = form.getResponses();
-  if (!responses.length) throw new Error('No responses yet.');
-
-  var latest = responses[responses.length - 1];
-  var namedValues = {};
-  var itemResponses = latest.getItemResponses();
-
-  for (var i = 0; i < itemResponses.length; i++) {
-    var itemResponse = itemResponses[i];
-    var title = String(itemResponse.getItem().getTitle() || '').trim();
-    var value = itemResponse.getResponse();
-    var text = Array.isArray(value) ? value.join(', ') : String(value || '').trim();
-    namedValues[title] = [text];
+  if (!STRICT_NAME_PATTERN.test(displayName)) {
+    throw new Error('Invalid name format. Use: SURNAME_FIRST NAME_M.I');
   }
-
-  syncNamedValues(namedValues);
+  if (!message) {
+    throw new Error('Message is required.');
+  }
+  syncNamedValues(e.namedValues);
 }
 
-function syncNamedValues(namedValues) {
-  var displayName = normalizeName(readField(namedValues, CONFIG.nameField));
-  var message = String(readField(namedValues, CONFIG.messageField) || '').trim();
+  const nowIso = new Date().toISOString();
+  const personKey = slugifyName(displayName);
+  const personPath = `${FIREBASE_SYNC_CONFIG.firebasePath}/${personKey}`;
 
-  if (!displayName) throw new Error('Missing/empty field: ' + CONFIG.nameField);
-  if (!message) throw new Error('Missing/empty field: ' + CONFIG.messageField);
-
-  var now = new Date().toISOString();
-  var personKey = slugify(displayName);
-  var personPath = CONFIG.firebasePath + '/' + personKey;
-
-  firebaseRequest('patch', personPath, {
-    displayName: displayName,
-    updatedAt: now
+  // 1) Maintain grouped person metadata.
+  firebasePatch(personPath, {
+    displayName,
+    updatedAt: nowIso
   });
 
-  firebaseRequest('put', personPath + '/profile', {
-    displayName: displayName,
+  firebasePut(`${personPath}/profile`, {
+    displayName,
     normalizedName: personKey
   });
 
-  firebaseRequest('post', personPath + '/submissions', {
-    createdAt: now,
-    message: message,
+  // 2) Add one submission record under the same person group.
+  const submissionPayload = {
+    createdAt: nowIso,
+    message,
     source: 'google-form',
-    rawFormAnswers: namedValues
-  });
+    rawFormAnswers: e.namedValues
+  };
+  firebasePost(`${personPath}/submissions`, submissionPayload);
 }
 
 function readField(namedValues, fieldName) {
-  var value = namedValues[fieldName];
-  if (!value || !value.length) return '';
+  const value = namedValues[fieldName];
+  if (!value || !value.length) {
+    throw new Error(`Missing form field: ${fieldName}`);
+  }
   return String(value[0] || '').trim();
+}
+
+function normalizeName(rawValue) {
+  return String(rawValue || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+}
+
+function slugifyName(name) {
+  return normalizeName(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'unnamed-participant';
 }
 
 function normalizeName(value) {
@@ -93,24 +101,47 @@ function slugify(value) {
     .replace(/(^-|-$)/g, '') || 'unnamed-participant';
 }
 
-function firebaseRequest(method, path, payload) {
-  var base = CONFIG.databaseUrl.replace(/\/$/, '');
-  var secret = String(CONFIG.databaseSecret || '').trim();
-  var authQuery = secret
-    ? 'auth=' + encodeURIComponent(secret)
-    : 'access_token=' + encodeURIComponent(ScriptApp.getOAuthToken());
-  var url = base + '/' + path + '.json?' + authQuery;
+function firebasePost(path, payload) {
+  return firebaseRequest('post', path, payload);
+}
 
-  var res = UrlFetchApp.fetch(url, {
-    method: method,
+function firebaseRequest(method, path, payload) {
+  const base = FIREBASE_SYNC_CONFIG.databaseUrl.replace(/\/$/, '');
+  const secret = String(FIREBASE_SYNC_CONFIG.databaseSecret || '').trim();
+  const authQuery = secret
+    ? `auth=${encodeURIComponent(secret)}`
+    : `access_token=${encodeURIComponent(ScriptApp.getOAuthToken())}`;
+  const url = `${base}/${path}.json?${authQuery}`;
+  const response = UrlFetchApp.fetch(url, {
+    method,
     contentType: 'application/json',
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
 
-  var code = res.getResponseCode();
-  if (code < 200 || code >= 300) {
-    throw new Error('Firebase error ' + code + ': ' + res.getContentText());
+  const status = response.getResponseCode();
+  if (status < 200 || status >= 300) {
+    throw new Error(`Firebase write failed (${status}): ${response.getContentText()}`);
   }
-  return JSON.parse(res.getContentText() || 'null');
+
+  return JSON.parse(response.getContentText() || 'null');
+}
+
+function readField(namedValues, fieldName) {
+  const value = namedValues[fieldName] || namedValues[String(fieldName || '').trim()];
+  if (!value || !value.length) {
+    throw new Error(`Missing form field: ${fieldName}`);
+  }
+  return String(value[0] || '').trim();
+}
+
+function normalizeName(rawValue) {
+  return String(rawValue || '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+function slugifyName(name) {
+  return normalizeName(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'unnamed-participant';
 }
