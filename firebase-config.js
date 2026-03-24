@@ -16,10 +16,10 @@ const firebaseConfig = {
 const appConfig = {
   // 1) EASIEST TIMER TO CHANGE.
   // Example: '2027-12-31T23:59:59'
-  revealIso: '2021-01-26T23:01:21',
+  revealIso: '2028-04-26T19:029:59',
 
   // 2) Set to true if you want to TEST the open vault immediately.
-  forceOpenVault: true,
+  forceOpenVault: false,
 
   // 3) Firebase path where the website stores entries.
   firebasePath: 'capsuleEntries',
