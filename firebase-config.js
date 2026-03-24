@@ -27,6 +27,14 @@ const appConfig = {
   // 4) Firebase path where the website stores entries.
   firebasePath: 'capsuleEntries',
 
+  // 4.1) Optional Google Drive sync webhook.
+  // Deploy the provided Apps Script web app and paste its /exec URL here.
+  driveSync: {
+    enabled: false,
+    webhookUrl: '',
+    apiKey: ''
+  },
+
   // 5) ALL THE WORDS AND FILES YOU WILL MOST LIKELY CHANGE.
   ui: {
     siteTitle: 'Your Batch Time Capsule',
