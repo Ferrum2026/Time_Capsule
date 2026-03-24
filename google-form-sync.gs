@@ -13,20 +13,39 @@
  *     - submissions/{autoId}
  */
 
-var FIREBASE_SYNC_CONFIG = {};
-// Realtime Database URL (no trailing slash)
-FIREBASE_SYNC_CONFIG.databaseUrl = 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app';
-// Parent path in Realtime Database
-FIREBASE_SYNC_CONFIG.firebasePath = 'capsuleEntries';
-// Optional database secret (legacy). Leave blank for public/dev rules.
-FIREBASE_SYNC_CONFIG.databaseSecret = '';
-// Must match Google Form question titles exactly.
-FIREBASE_SYNC_CONFIG.nameField = 'Full name';
-FIREBASE_SYNC_CONFIG.messageField = 'Message to your future self';
+var FIREBASE_SYNC_CONFIG = {
+  // Realtime Database URL (no trailing slash)
+  databaseUrl: 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app',
+
+  // Parent path in Realtime Database
+  firebasePath: 'capsuleEntries',
+
+  // Optional database secret (legacy). Leave blank to use ScriptApp OAuth token.
+  databaseSecret: '',
+
+  // Must match Google Form question titles exactly.
+  nameField: 'Full name',
+  messageField: 'Message to your future self'
+};
+
+  // Optional: explicit file upload question titles.
+  // If empty, script auto-detects all FILE_UPLOAD questions in the form response.
+  fileFieldTitles: [],
+
+  // Optional: where uploaded form files should be attached in Drive.
+  // Leave blank to keep the original Form upload location.
+  driveFolderId: '4q0u9WSr3WvBLO9t96HPALANiEP8Uvn4SME83p3EpyM6IhtrV6nYNlRi14xX5TyCdm7ljv7a',
+
+  // Set true to attempt "Anyone with the link can view" on uploaded files.
+  makeFilesPublic: true
+};
 
 // Required strict format: SURNAME_FIRST NAME_M.I
 var STRICT_NAME_PATTERN = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
+/**
+ * Trigger entrypoint (installable form submit trigger).
+ */
 function onFormSubmit(e) {
   if (!e || !e.namedValues) {
     throw new Error('Missing event payload. Use an installable form-submit trigger.');
@@ -35,9 +54,12 @@ function onFormSubmit(e) {
   syncNamedValues(e.namedValues);
 }
 
+/**
+ * Extract, validate, normalize, and sync one submission.
+ */
 function syncNamedValues(namedValues) {
-  var displayName = normalizeName(readField(namedValues, FIREBASE_SYNC_CONFIG.nameField));
-  var message = String(readField(namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
+  const displayName = normalizeName(readField(namedValues, FIREBASE_SYNC_CONFIG.nameField));
+  const message = String(readField(namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
 
   if (!STRICT_NAME_PATTERN.test(displayName)) {
     throw new Error('Invalid name format. Use: SURNAME_FIRST NAME_M.I');
@@ -50,6 +72,7 @@ function syncNamedValues(namedValues) {
   var personKey = slugifyName(displayName);
   var personPath = FIREBASE_SYNC_CONFIG.firebasePath + '/' + personKey;
 
+  // Save the participant node and profile.
   firebasePatch(personPath, {
     displayName: displayName,
     updatedAt: nowIso
@@ -60,18 +83,21 @@ function syncNamedValues(namedValues) {
     normalizedName: personKey
   });
 
-  firebasePost(personPath + '/submissions', {
+  // Save one submission directly into Realtime Database.
+  const submissionPayload = {
     createdAt: nowIso,
     message: message,
     source: 'google-form',
     attachments: [],
     storageManifest: null,
     rawFormAnswers: namedValues
-  });
+  };
+
+  firebasePost(`${personPath}/submissions`, submissionPayload);
 }
 
 function readField(namedValues, fieldName) {
-  var value = namedValues[fieldName] || namedValues[String(fieldName || '').trim()];
+  const value = namedValues[fieldName] || namedValues[String(fieldName || '').trim()];
   if (!value || !value.length) {
     throw new Error('Missing form field: ' + fieldName);
   }
@@ -102,16 +128,18 @@ function firebasePost(path, payload) {
 }
 
 function firebaseRequest(method, path, payload) {
-  var base = FIREBASE_SYNC_CONFIG.databaseUrl.replace(/\/$/, '');
-  var secret = String(FIREBASE_SYNC_CONFIG.databaseSecret || '').trim();
-  var url = secret
-    ? base + '/' + path + '.json?auth=' + encodeURIComponent(secret)
-    : base + '/' + path + '.json';
+  const base = FIREBASE_SYNC_CONFIG.databaseUrl.replace(/\/$/, '');
+  const secret = String(FIREBASE_SYNC_CONFIG.databaseSecret || '').trim();
+  const authQuery = secret
+    ? `auth=${encodeURIComponent(secret)}`
+    : `access_token=${encodeURIComponent(ScriptApp.getOAuthToken())}`;
 
-  var response = UrlFetchApp.fetch(url, {
-    method: method,
+  const url = `${base}/${path}.json?${authQuery}`;
+  const response = UrlFetchApp.fetch(url, {
+    method,
     contentType: 'application/json',
     payload: JSON.stringify(payload),
+    headers,
     muteHttpExceptions: true
   });
 

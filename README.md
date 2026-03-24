@@ -144,11 +144,14 @@ Use `google-form-sync.gs` instead:
    - `firebasePath`
    - `databaseSecret` (optional; only if your Realtime Database rules require `auth`)
    - `nameField` and `messageField` (must match Form question titles exactly)
+   - `fileFieldTitles` (optional; file-upload question titles, leave empty to auto-detect)
+   - `driveFolderId` (optional; attach uploaded files to this Google Drive folder)
+   - `makeFilesPublic` (set `true` to allow website previews with link access)
 4. Add an installable trigger: **onFormSubmit** → **From form** → **On form submit**.
 
 This script enforces strict uppercase format `SURNAME_FIRST NAME_M.I` and writes each submission directly to Realtime Database under `capsuleEntries/{person-slug}/submissions/{autoId}`.
 
-For now, Google Form sync writes text-only submissions (`attachments: []`) directly to Firebase so the board stays in sync first.
+If your Google Form has **File upload** questions, the script now records Google Drive file metadata and links in `attachments[]` so entries from web and Google Form both appear in the same board format.
 
 Important auth note for Apps Script:
 - If your Realtime Database rules allow public writes for testing, leave `databaseSecret` blank.
