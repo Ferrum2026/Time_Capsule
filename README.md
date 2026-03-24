@@ -10,7 +10,7 @@ Participants can:
 - still open the old Google Form if you decide to keep it visible.
 
 The website stores:
-- file uploads in **Firebase Storage**,
+- every submission payload (`submission.json`) and file uploads in **Firebase Storage**,
 - submission records in **Firebase Realtime Database**,
 - repeated submissions under the same participant key,
 - no Google Drive folders at all.
@@ -28,7 +28,7 @@ The website stores:
 
 ## 2. Required participant format
 
-Participants must type their name like this:
+Participants must type their name in UPPERCASE exactly like this:
 
 ```text
 SURNAME_FIRST NAME_M.I
@@ -62,11 +62,18 @@ Each submission stores:
 - `createdAt`
 - `message`
 - `attachments[]`
+- `storageManifest` (path + URL of the JSON snapshot in Storage)
 
-Uploaded files are stored in Firebase Storage under:
+Firebase Storage stores files under:
 
 ```text
-capsuleEntries/{person-slug}/{timestamp-fileName}
+capsuleEntries/{person-slug}/{submissionKey}/files/{timestamp-fileName}
+```
+
+Each submission also writes a JSON snapshot to:
+
+```text
+capsuleEntries/{person-slug}/{submissionKey}/submission.json
 ```
 
 ---
@@ -114,3 +121,40 @@ Then open `index.html` through a local web server and submit a sample entry.
 - The optional Google Form link is just a fallback shortcut and does not create Google Drive folders.
 - File uploads are saved first, then the submission record is written.
 - The reveal area groups entries by participant name instead of showing each submission as a separate top-level category.
+
+---
+
+
+## 8. Google Form trigger (Apps Script)
+
+If you are submitting from **Google Form** and got:
+
+```text
+ReferenceError: document is not defined
+```
+
+that means browser code (`app.js`) was pasted into Apps Script. Apps Script has no `document` object.
+
+Use `google-form-sync.gs` instead:
+
+1. Open your Google Form → **Script editor**.
+2. Paste `google-form-sync.gs` content.
+3. Update these values in `FIREBASE_SYNC_CONFIG`:
+   - `databaseUrl`
+   - `storageBucket`
+   - `firebasePath`
+   - `databaseSecret` (optional; only if your Realtime Database rules require `auth`)
+   - `nameField` and `messageField` (must match Form question titles exactly)
+4. Add an installable trigger: **onFormSubmit** → **From form** → **On form submit**.
+
+5. You can run `onFormSubmit()` manually for debugging: it will read the **latest form response** if no trigger payload is provided.
+6. (Optional) run `testFirebaseWrite()` once in Apps Script to verify data appears under `capsuleEntries/...`.
+
+The script will try the configured `storageBucket` first and then fallback to `PROJECT_ID.appspot.com` automatically. It also matches form field titles case-insensitively if spacing/case differs.
+
+This script enforces strict uppercase format `SURNAME_FIRST NAME_M.I`, writes each submission to Realtime Database, and uploads `submission.json` to Firebase Storage under:
+
+```text
+capsuleEntries/{person-slug}/{submissionKey}/submission.json
+```
+
