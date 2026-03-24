@@ -96,6 +96,73 @@ function syncNamedValues(namedValues) {
   firebasePost(`${personPath}/submissions`, submissionPayload);
 }
 
+function extractDriveAttachments(e) {
+  if (!e || !e.response || typeof e.response.getItemResponses !== 'function') {
+    return [];
+  }
+
+  const configuredTitles = (FIREBASE_SYNC_CONFIG.fileFieldTitles || []).map((title) =>
+    String(title || '').trim()
+  ).filter(Boolean);
+
+  const itemResponses = e.response.getItemResponses();
+  const attachments = [];
+
+  itemResponses.forEach((itemResponse) => {
+    const item = itemResponse.getItem();
+    const title = String(item.getTitle() || '').trim();
+    const itemType = item.getType && item.getType();
+
+    const allowByTitle = configuredTitles.length === 0 || configuredTitles.indexOf(title) !== -1;
+    const isFileUpload = itemType === FormApp.ItemType.FILE_UPLOAD;
+    if (!allowByTitle || !isFileUpload) return;
+
+    const responseValue = itemResponse.getResponse();
+    const fileIds = Array.isArray(responseValue)
+      ? responseValue
+      : (responseValue ? [responseValue] : []);
+
+    fileIds.forEach((fileId) => {
+      const attachment = mapDriveFileAttachment(fileId);
+      if (attachment) {
+        attachments.push(attachment);
+      }
+    });
+  });
+
+  return attachments;
+}
+
+function mapDriveFileAttachment(fileId) {
+  const cleanId = String(fileId || '').trim();
+  if (!cleanId) return null;
+
+  try {
+    const file = DriveApp.getFileById(cleanId);
+    const mime = file.getMimeType() || 'application/octet-stream';
+    return {
+      id: cleanId,
+      name: file.getName() || `drive-file-${cleanId}`,
+      type: mime,
+      size: Number(file.getSize() || 0),
+      source: 'google-drive',
+      url: `https://drive.google.com/file/d/${encodeURIComponent(cleanId)}/view?usp=drivesdk`,
+      downloadUrl: `https://drive.google.com/uc?export=download&id=${encodeURIComponent(cleanId)}`
+    };
+  } catch (error) {
+    // Keep sync resilient when one file becomes inaccessible/deleted.
+    return {
+      id: cleanId,
+      name: `drive-file-${cleanId}`,
+      type: 'application/octet-stream',
+      size: 0,
+      source: 'google-drive',
+      url: `https://drive.google.com/file/d/${encodeURIComponent(cleanId)}/view?usp=drivesdk`,
+      error: String(error && error.message ? error.message : error)
+    };
+  }
+}
+
 function readField(namedValues, fieldName) {
   const value = namedValues[fieldName] || namedValues[String(fieldName || '').trim()];
   if (!value || !value.length) {
