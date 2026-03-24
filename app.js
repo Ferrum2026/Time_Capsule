@@ -318,21 +318,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const newSubmissionRef = personRef.child('submissions').push();
       const submissionKey = newSubmissionRef.key || `submission-${Date.now()}`;
 
-      await withTimeout(personRef.update({
-        displayName,
-        updatedAt: nowIso,
-        profile: {
+      await withTimeout(Promise.all([
+        personRef.child('profile').set({
           displayName,
           normalizedName: personKey,
-        }
-      }), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
-
-      await withTimeout(newSubmissionRef.set({
-        createdAt: nowIso,
-        message,
-        attachments: [],
-        storageManifest: null,
-      }), 30000, 'Submission write timed out. Check Firebase Realtime Database rules and try again.');
+        }),
+        personRef.update({
+          displayName,
+          updatedAt: nowIso,
+        }),
+        newSubmissionRef.set({
+          createdAt: nowIso,
+          message,
+          attachments: [],
+          storageManifest: null,
+        })
+      ]), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
 
       let uploadWarning = '';
       if (files.length && storage) {

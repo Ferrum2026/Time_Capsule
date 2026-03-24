@@ -118,15 +118,11 @@ function firebasePost(path, payload) {
 function firebaseRequest(method, path, payload) {
   const base = FIREBASE_SYNC_CONFIG.databaseUrl.replace(/\/$/, '');
   const secret = String(FIREBASE_SYNC_CONFIG.databaseSecret || '').trim();
-  const token = ScriptApp.getOAuthToken();
-  const url = secret
-    ? `${base}/${path}.json?auth=${encodeURIComponent(secret)}`
-    : `${base}/${path}.json`;
+  const authQuery = secret
+    ? `auth=${encodeURIComponent(secret)}`
+    : `access_token=${encodeURIComponent(ScriptApp.getOAuthToken())}`;
 
-  const headers = secret
-    ? {}
-    : { Authorization: `Bearer ${token}` };
-
+  const url = `${base}/${path}.json?${authQuery}`;
   const response = UrlFetchApp.fetch(url, {
     method,
     contentType: 'application/json',
