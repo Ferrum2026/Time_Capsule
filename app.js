@@ -353,15 +353,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function loadEntries() {
     if (!firebaseConfig || typeof firebase === 'undefined' || !firebase.apps) {
-      renderEntries([]);
-      setStatus('Firebase config is missing. Add your project details in firebase-config.js.', 'error');
-      return;
+      throw new Error('Firebase config is missing. Add your project details in firebase-config.js.');
     }
 
-    try {
-      if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-      }
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
 
       database = firebase.database();
     } catch (error) {
@@ -369,17 +366,32 @@ document.addEventListener('DOMContentLoaded', () => {
       setStatus(`Firebase initialization failed: ${error.message || 'Unknown error'}`, 'error');
       return;
     }
+  }
 
+  function subscribeToEntries() {
     database.ref(firebasePath).on('value', (snapshot) => {
       const entries = normalizeFirebaseData(snapshot.val());
       renderEntries(entries);
-    }, () => {
+    }, (error) => {
       renderEntries([]);
+      if (error && error.code === 'PERMISSION_DENIED') {
+        els.entriesHelp.textContent = 'Entries are secured by Firebase rules and are unavailable before reveal/admin access.';
+      }
     });
+  }
+
+  async function startApp() {
+    try {
+      await initializeFirebase();
+      subscribeToEntries();
+    } catch (error) {
+      renderEntries([]);
+      setStatus(error.message || 'Firebase initialization failed.', 'error');
+    }
   }
 
   updateCountdown();
   setInterval(updateCountdown, 1000);
-  loadEntries();
+  startApp();
   els.form.addEventListener('submit', handleFormSubmit);
 });
