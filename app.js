@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const isForcedOpen = config.forceOpenVault === true;
   const firebasePath = config.firebasePath || 'capsuleEntries';
   const legacyFormUrl = String(config.googleFormUrl || '').trim();
-  const namePattern = /^[A-Za-z][A-Za-z' -]*_[A-Za-z][A-Za-z' -]*_[A-Za-z](\.[A-Za-z])?\.?$/;
+  const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
   const els = {
     title: document.getElementById('site-title'),
@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!url) {
       links.forEach((link) => link.classList.add('hidden'));
       if (els.legacyFormHelp) {
+        els.legacyFormHelp.textContent = 'Set googleFormUrl in firebase-config.js to show this fallback link. Use the Firebase form above to save entries in the board.';
         els.legacyFormHelp.classList.remove('hidden');
       }
       return;
@@ -82,7 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
       link.classList.remove('hidden');
     });
     if (els.legacyFormHelp) {
-      els.legacyFormHelp.classList.add('hidden');
+      els.legacyFormHelp.textContent = 'Google Form submissions do not automatically sync to this Firebase board. Use the Firebase form above to save entries here.';
+      els.legacyFormHelp.classList.remove('hidden');
     }
   }
 
@@ -128,7 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function normalizeName(rawValue) {
-    return String(rawValue || '').trim().replace(/\s+/g, ' ');
+    return String(rawValue || '').trim().replace(/\s+/g, ' ').toUpperCase();
   }
 
   function slugifyName(name) {
@@ -141,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function validateName(name) {
     const normalized = normalizeName(name);
     if (!namePattern.test(normalized)) {
-      throw new Error('Use this format: SURNAME_FIRST NAME_M.I');
+      throw new Error('Use name format: SURNAME_FIRST NAME_M.I (letters, spaces, apostrophe, hyphen).');
     }
     return normalized;
   }
@@ -233,12 +235,12 @@ document.addEventListener('DOMContentLoaded', () => {
     els.formStatus.className = `form-status ${type || ''}`.trim();
   }
 
-  async function uploadFiles(personKey, files) {
-    if (!files.length) return [];
+  async function uploadFiles(personKey, submissionKey, files) {
+    if (!files.length || !storage) return [];
 
     const uploads = files.map(async (file) => {
       const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const path = `${firebasePath}/${personKey}/${safeName}`;
+      const path = `${firebasePath}/${personKey}/${submissionKey}/files/${safeName}`;
       const snapshot = await storage.ref(path).put(file);
       const url = await snapshot.ref.getDownloadURL();
       return {
@@ -253,11 +255,21 @@ document.addEventListener('DOMContentLoaded', () => {
     return Promise.all(uploads);
   }
 
+  async function uploadSubmissionManifest(personKey, submissionKey, payload) {
+    if (!storage) return null;
+
+    const path = `${firebasePath}/${personKey}/${submissionKey}/submission.json`;
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const snapshot = await storage.ref(path).put(blob);
+    const url = await snapshot.ref.getDownloadURL();
+    return { path, url };
+  }
+
   async function handleFormSubmit(event) {
     event.preventDefault();
 
-    if (!database || !storage) {
-      setStatus('Firebase is not ready yet. Check your Firebase config first.', 'error');
+    if (!database) {
+      setStatus('Firebase Database is not ready yet. Check your Firebase config first.', 'error');
       return;
     }
 
@@ -274,12 +286,31 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error('Please enter a short message before saving.');
       }
 
-      setStatus(files.length ? 'Uploading files and saving your entry...' : 'Saving your entry...', 'loading');
+      setStatus('Syncing your submission to Firebase Storage and Database...', 'loading');
 
-      const attachments = await uploadFiles(personKey, files);
       const nowIso = new Date().toISOString();
       const personRef = database.ref(`${firebasePath}/${personKey}`);
       const newSubmissionRef = personRef.child('submissions').push();
+      const submissionKey = newSubmissionRef.key || `submission-${Date.now()}`;
+
+      let attachments = [];
+      let manifest = null;
+      let storageWarning = '';
+
+      if (files.length || storage) {
+        try {
+          attachments = await uploadFiles(personKey, submissionKey, files);
+          manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+            displayName,
+            normalizedName: personKey,
+            createdAt: nowIso,
+            message,
+            attachments,
+          });
+        } catch (storageError) {
+          storageWarning = ' Saved to database, but Storage upload failed.';
+        }
+      }
 
       await personRef.child('profile').set({
         displayName,
@@ -295,10 +326,11 @@ document.addEventListener('DOMContentLoaded', () => {
         createdAt: nowIso,
         message,
         attachments,
+        storageManifest: manifest,
       });
 
       els.form.reset();
-      setStatus('Saved successfully. Repeat submissions using the same name will stay under the same participant category.', 'success');
+      setStatus(`Saved successfully to Realtime Database.${storageWarning}`, 'success');
     } catch (error) {
       setStatus(error.message || 'Failed to save the entry.', 'error');
     } finally {
@@ -313,12 +345,18 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-    }
+    try {
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
 
-    database = firebase.database();
-    storage = firebase.storage();
+      database = firebase.database();
+      storage = firebase.storage();
+    } catch (error) {
+      renderEntries([]);
+      setStatus(`Firebase initialization failed: ${error.message || 'Unknown error'}`, 'error');
+      return;
+    }
 
     database.ref(firebasePath).on('value', (snapshot) => {
       const entries = normalizeFirebaseData(snapshot.val());
