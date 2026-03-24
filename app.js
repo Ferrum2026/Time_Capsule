@@ -201,20 +201,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderAttachment(item) {
     const url = item && item.url ? item.url : '';
+    const previewUrl = item && item.previewUrl ? item.previewUrl : '';
+    const downloadUrl = item && item.downloadUrl ? item.downloadUrl : '';
     const type = (item && item.type ? item.type : '').toLowerCase();
     const name = item && item.name ? item.name : 'Open file';
     if (!url) return '';
+    const mediaUrl = previewUrl || downloadUrl || url;
 
     if (type.startsWith('image/')) {
-      return `<img src="${escapeAttribute(url)}" alt="${escapeAttribute(name)}">`;
+      return `<a class="entry-link" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer"><img src="${escapeAttribute(mediaUrl)}" alt="${escapeAttribute(name)}"></a>`;
     }
     if (type.startsWith('video/')) {
-      return `<video controls src="${escapeAttribute(url)}"></video>`;
+      return `<video controls src="${escapeAttribute(mediaUrl)}"></video>`;
     }
     if (type.startsWith('audio/')) {
-      return `<audio controls src="${escapeAttribute(url)}"></audio>`;
+      return `<audio controls src="${escapeAttribute(mediaUrl)}"></audio>`;
     }
-    return `<a class="entry-link" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(name)}</a>`;
+    return `<a class="entry-link" href="${escapeAttribute(downloadUrl || url)}" target="_blank" rel="noreferrer">${escapeHtml(name)}</a>`;
   }
 
   function escapeHtml(value) {

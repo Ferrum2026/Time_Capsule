@@ -29,7 +29,14 @@ var FIREBASE_SYNC_CONFIG = {
 
   // Optional: explicit file upload question titles.
   // If empty, script auto-detects all FILE_UPLOAD questions in the form response.
-  fileFieldTitles: []
+  fileFieldTitles: [],
+
+  // Optional: where uploaded form files should be attached in Drive.
+  // Leave blank to keep the original Form upload location.
+  driveFolderId: '4q0u9WSr3WvBLO9t96HPALANiEP8Uvn4SME83p3EpyM6IhtrV6nYNlRi14xX5TyCdm7ljv7a',
+
+  // Set true to attempt "Anyone with the link can view" on uploaded files.
+  makeFilesPublic: true
 };
 
 // Required strict format: SURNAME_FIRST NAME_M.I
@@ -133,15 +140,21 @@ function mapDriveFileAttachment(fileId) {
 
   try {
     var file = DriveApp.getFileById(cleanId);
+    attachFileToConfiguredFolder(file);
+    maybeMakeFilePublic(file);
     var mime = file.getMimeType() || 'application/octet-stream';
+    var encodedId = encodeURIComponent(cleanId);
+    var previewUrl = buildPreviewUrl(cleanId, mime);
+
     return {
       id: cleanId,
       name: file.getName() || ('drive-file-' + cleanId),
       type: mime,
       size: Number(file.getSize() || 0),
       source: 'google-drive',
-      url: 'https://drive.google.com/file/d/' + encodeURIComponent(cleanId) + '/view?usp=drivesdk',
-      downloadUrl: 'https://drive.google.com/uc?export=download&id=' + encodeURIComponent(cleanId)
+      url: 'https://drive.google.com/file/d/' + encodedId + '/view?usp=drivesdk',
+      downloadUrl: 'https://drive.google.com/uc?export=download&id=' + encodedId,
+      previewUrl: previewUrl
     };
   } catch (error) {
     // Keep sync resilient when one file becomes inaccessible/deleted.
@@ -155,6 +168,30 @@ function mapDriveFileAttachment(fileId) {
       error: String(error && error.message ? error.message : error)
     };
   }
+}
+
+function attachFileToConfiguredFolder(file) {
+  var folderId = String(FIREBASE_SYNC_CONFIG.driveFolderId || '').trim();
+  if (!folderId) return;
+
+  var folder = DriveApp.getFolderById(folderId);
+  folder.addFile(file);
+}
+
+function maybeMakeFilePublic(file) {
+  if (!FIREBASE_SYNC_CONFIG.makeFilesPublic) return;
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+}
+
+function buildPreviewUrl(fileId, mimeType) {
+  var encodedId = encodeURIComponent(fileId);
+  if (String(mimeType || '').indexOf('image/') === 0) {
+    return 'https://drive.google.com/thumbnail?id=' + encodedId + '&sz=w1600';
+  }
+  if (String(mimeType || '').indexOf('video/') === 0 || String(mimeType || '').indexOf('audio/') === 0) {
+    return 'https://drive.google.com/uc?export=download&id=' + encodedId;
+  }
+  return 'https://drive.google.com/file/d/' + encodedId + '/preview';
 }
 
 function readField(namedValues, fieldName) {

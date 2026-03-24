@@ -145,6 +145,8 @@ Use `google-form-sync.gs` instead:
    - `databaseSecret` (optional; only if your Realtime Database rules require `auth`)
    - `nameField` and `messageField` (must match Form question titles exactly)
    - `fileFieldTitles` (optional; file-upload question titles, leave empty to auto-detect)
+   - `driveFolderId` (optional; attach uploaded files to this Google Drive folder)
+   - `makeFilesPublic` (set `true` to allow website previews with link access)
 4. Add an installable trigger: **onFormSubmit** → **From form** → **On form submit**.
 
 This script enforces strict uppercase format `SURNAME_FIRST NAME_M.I` and writes each submission directly to Realtime Database under `capsuleEntries/{person-slug}/submissions/{autoId}`.
