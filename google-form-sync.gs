@@ -11,7 +11,8 @@
 const FIREBASE_SYNC_CONFIG = {
   // Realtime Database URL (no trailing slash)
   databaseUrl: 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app',
-  storageBucket: 'batchcapsule.firebasestorage.app',
+
+  // Parent path in Realtime Database
   firebasePath: 'capsuleEntries',
   databaseSecret: '',
   nameField: 'Full name',
