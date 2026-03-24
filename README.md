@@ -28,7 +28,7 @@ The website stores:
 
 ## 2. Required participant format
 
-Participants should type their name like this (input is normalized to uppercase automatically):
+Participants must type their name in UPPERCASE exactly like this:
 
 ```text
 SURNAME_FIRST NAME_M.I
@@ -147,14 +147,7 @@ Use `google-form-sync.gs` instead:
    - `nameField` and `messageField` (must match Form question titles exactly)
 4. Add an installable trigger: **onFormSubmit** → **From form** → **On form submit**.
 
-5. You can run `onFormSubmit()` manually for debugging: it will read the **latest form response** if no trigger payload is provided.
-6. (Optional) run `testFirebaseWrite()` once in Apps Script to verify data appears under `capsuleEntries/...`.
-
-The script will try the configured `storageBucket` first and then fallback to `PROJECT_ID.appspot.com` automatically. It also matches form field titles case-insensitively if spacing/case differs.
-
-This script validates format `SURNAME_FIRST NAME_M.I`, writes each submission to Realtime Database, and uploads `submission.json` to Firebase Storage under:
-
-If Firebase Storage fails, the message is still saved in Realtime Database.
+This script enforces strict uppercase format `SURNAME_FIRST NAME_M.I`, writes each submission to Realtime Database, and uploads `submission.json` to Firebase Storage under:
 
 ```text
 capsuleEntries/{person-slug}/{submissionKey}/submission.json

@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function validateName(name) {
     const normalized = normalizeName(name);
     if (!namePattern.test(normalized)) {
-      throw new Error('Use name format: SURNAME_FIRST NAME_M.I (letters, spaces, apostrophe, hyphen).');
+      throw new Error('Use UPPERCASE strict format: SURNAME_FIRST NAME_M.I');
     }
     return normalized;
   }
@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.formStatus.className = `form-status ${type || ''}`.trim();
   }
 
-  async function uploadFiles(personKey, submissionKey, files) {
+  async function uploadFiles(personKey, files) {
     if (!files.length || !storage) return [];
 
     const uploads = files.map(async (file) => {
@@ -256,7 +256,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function uploadSubmissionManifest(personKey, submissionKey, payload) {
-    if (!storage) return null;
+    if (!storage) {
+      throw new Error('Firebase Storage is not ready.');
+    }
 
     const path = `${firebasePath}/${personKey}/${submissionKey}/submission.json`;
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -269,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
     event.preventDefault();
 
     if (!database) {
-      setStatus('Firebase Database is not ready yet. Check your Firebase config first.', 'error');
+      setStatus('Firebase is not ready yet. Check your Firebase config first.', 'error');
       return;
     }
 
@@ -288,29 +290,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
       setStatus('Syncing your submission to Firebase Storage and Database...', 'loading');
 
+      let attachments = [];
+      let uploadWarning = '';
+      if (files.length) {
+        try {
+          attachments = await uploadFiles(personKey, files);
+        } catch (uploadError) {
+          uploadWarning = ' Files were not uploaded, but your message entry was still saved.';
+        }
+      }
       const nowIso = new Date().toISOString();
       const personRef = database.ref(`${firebasePath}/${personKey}`);
       const newSubmissionRef = personRef.child('submissions').push();
       const submissionKey = newSubmissionRef.key || `submission-${Date.now()}`;
 
-      let attachments = [];
-      let manifest = null;
-      let storageWarning = '';
-
-      if (files.length || storage) {
-        try {
-          attachments = await uploadFiles(personKey, submissionKey, files);
-          manifest = await uploadSubmissionManifest(personKey, submissionKey, {
-            displayName,
-            normalizedName: personKey,
-            createdAt: nowIso,
-            message,
-            attachments,
-          });
-        } catch (storageError) {
-          storageWarning = ' Saved to database, but Storage upload failed.';
-        }
-      }
+      const attachments = await uploadFiles(personKey, submissionKey, files);
+      const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+        displayName,
+        normalizedName: personKey,
+        createdAt: nowIso,
+        message,
+        attachments,
+      });
 
       await personRef.child('profile').set({
         displayName,
@@ -330,7 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       els.form.reset();
-      setStatus(`Saved successfully to Realtime Database.${storageWarning}`, 'success');
+      setStatus(`Saved successfully. Repeat submissions using the same name will stay under the same participant category.${uploadWarning}`, 'success');
     } catch (error) {
       setStatus(error.message || 'Failed to save the entry.', 'error');
     } finally {
