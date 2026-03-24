@@ -9,8 +9,9 @@
 
 const FIREBASE_SYNC_CONFIG = {
   databaseUrl: 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app',
-  storageBucket: 'batchcapsule.firebasestorage.app',
+  storageBucket: 'batchcapsule.appspot.com',
   firebasePath: 'capsuleEntries',
+  databaseSecret: '',
   nameField: 'Full name',
   messageField: 'Message to your future self'
 };
@@ -101,9 +102,12 @@ function firebasePatch(path, payload) {
 }
 
 function firebaseRequest(method, path, payload) {
-  const token = ScriptApp.getOAuthToken();
   const base = FIREBASE_SYNC_CONFIG.databaseUrl.replace(/\/$/, '');
-  const url = `${base}/${path}.json?access_token=${encodeURIComponent(token)}`;
+  const secret = String(FIREBASE_SYNC_CONFIG.databaseSecret || '').trim();
+  const authQuery = secret
+    ? `auth=${encodeURIComponent(secret)}`
+    : `access_token=${encodeURIComponent(ScriptApp.getOAuthToken())}`;
+  const url = `${base}/${path}.json?${authQuery}`;
   const response = UrlFetchApp.fetch(url, {
     method,
     contentType: 'application/json',
