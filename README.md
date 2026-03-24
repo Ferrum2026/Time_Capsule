@@ -1,26 +1,27 @@
 # Simple Time Capsule Template
 
-This version includes a built-in **Firebase submission form** that stores submissions (including files) directly in **Firebase Realtime Database**.
+This version includes a built-in **Firebase submission form** with optional **Google Drive mirroring** for uploaded files.
 
 Participants can:
 - enter their name using the required format `SURNAME_FIRST NAME_M.I`,
 - write a short message,
 - optionally upload any file type,
 - submit multiple times without creating duplicate person categories,
-- upload files that are saved directly in the same database submission record.
+- optionally mirror uploaded files to Google Drive after Firebase upload succeeds.
 
 The website stores:
-- participant profile and submission records in **Firebase Realtime Database**,
-- message text and uploaded file payloads stored together per submission,
-- repeated submissions under the same participant key.
+- every submission payload (`submission.json`) and file uploads in **Firebase Storage**,
+- submission records in **Firebase Realtime Database**,
+- repeated submissions under the same participant key,
+- optional mirrored copies to Google Drive via webhook if enabled.
 
 ---
 
 ## 1. Main files to edit
 
-- `firebase-config.js` — Firebase project settings, reveal date, and UI text.
+- `firebase-config.js` — Firebase project settings, reveal date, optional Google Drive mirror webhook, and UI text.
 - `index.html` — page structure including the participant form and storage-priority guidance.
-- `app.js` — countdown, form handling, file-to-dataURL conversion, Realtime Database writes, and grouped entry rendering.
+- `app.js` — countdown, form handling, Firebase upload logic, optional Google Drive mirroring, and grouped entry rendering.
 - `main.css` — page styling.
 
 ---
@@ -64,15 +65,21 @@ Each submission stores:
 
 ---
 
-## 4. Data model
+## 4. Optional Google Drive mirror
 
 Google Forms are currently on hold.
 
-Each submission is written under `capsuleEntries/{person-slug}/submissions/{autoId}` with:
+If you want to mirror files to Google Drive after Firebase upload, configure this in `firebase-config.js`:
 
-- `createdAt`
-- `message`
-- `attachments[]` containing `{ name, type, size, dataUrl }`
+```js
+driveSync: {
+  enabled: true,
+  webhookUrl: 'https://script.google.com/macros/s/your-web-app-id/exec',
+  apiKey: ''
+}
+```
+
+If `driveSync.enabled` is `false`, uploads stay Firebase-only.
 
 ## 5. Firebase setup
 
@@ -100,8 +107,9 @@ Then open `index.html` through a local web server and submit a sample entry.
 
 ## 7. Notes
 
-- The main submission flow is Firebase Realtime Database-only (no Google Forms in the current flow).
-- File uploads are encoded and stored in the same submission object as the message and participant key.
+- The main submission flow is Firebase-first (no Google Forms in the current flow).
+- Optional Google Drive mirror runs only after Firebase upload succeeds.
+- File uploads are saved first, then the submission record is written.
 - The reveal area groups entries by participant name instead of showing each submission as a separate top-level category.
 
 ---

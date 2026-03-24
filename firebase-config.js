@@ -16,13 +16,21 @@ const firebaseConfig = {
 const appConfig = {
   // 1) EASIEST TIMER TO CHANGE.
   // Example: '2027-12-31T23:59:59'
-  revealIso: '2023-03-22T23:10:59',
+  revealIso: '2027-04-26T23:07:30',
 
   // 2) Set to true if you want to TEST the open vault immediately.
-  forceOpenVault: true,
+  forceOpenVault: false,
 
   // 3) Firebase path where the website stores entries.
   firebasePath: 'capsuleEntries',
+
+  // 3.1) Optional Google Drive mirror for uploaded files.
+  // Deploy the provided Apps Script web app and paste its /exec URL here.
+  driveSync: {
+    enabled: false,
+    webhookUrl: '',
+    apiKey: 'AIzaSyB9ADMsJMGKO9jvUxpDdclVAHy4RZmileQ'
+  },
 
   // 4) ALL THE WORDS AND FILES YOU WILL MOST LIKELY CHANGE.
   ui: {

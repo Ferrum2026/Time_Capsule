@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const revealDate = new Date(config.revealIso || Date.now());
   const isForcedOpen = parseBoolean(config.forceOpenVault);
   const firebasePath = config.firebasePath || 'capsuleEntries';
+  const driveSyncConfig = config.driveSync || {};
+  const isDriveSyncEnabled = parseBoolean(driveSyncConfig.enabled);
   const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
   const els = {
@@ -301,6 +303,38 @@ document.addEventListener('DOMContentLoaded', () => {
           attachments,
         })
       ]), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
+
+      let uploadWarning = '';
+      if (files.length && storage) {
+        try {
+          setStatus('Database saved. Uploading files to Firebase Storage...', 'loading');
+          const attachments = await uploadFiles(personKey, submissionKey, files);
+          const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+            displayName,
+            normalizedName: personKey,
+            createdAt: nowIso,
+            message,
+            attachments,
+          });
+          await withTimeout(newSubmissionRef.update({
+            attachments,
+            storageManifest: manifest,
+          }), 30000, 'Database update timed out while attaching uploaded files.');
+
+          if (isDriveSyncEnabled && attachments.length) {
+            setStatus('Files uploaded to Firebase. Mirroring copies to Google Drive...', 'loading');
+            await syncSubmissionToDrive({
+              personKey,
+              displayName,
+              createdAt: nowIso,
+              submissionKey,
+              attachments,
+            });
+          }
+        } catch (uploadError) {
+          uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
+        }
+      }
 
       els.form.reset();
       setStatus('Saved successfully to Firebase Realtime Database.', 'success');
