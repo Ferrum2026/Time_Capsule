@@ -367,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function loadEntries() {
-    if (!firebaseConfig || !firebase || !firebase.apps) {
+    if (!firebaseConfig || typeof firebase === 'undefined' || !firebase.apps) {
       renderEntries([]);
       setStatus('Firebase config is missing. Add your project details in firebase-config.js.', 'error');
       return;

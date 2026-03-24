@@ -127,6 +127,7 @@ function firebaseRequest(method, path, payload) {
     method,
     contentType: 'application/json',
     payload: JSON.stringify(payload),
+    headers,
     muteHttpExceptions: true
   });
 
