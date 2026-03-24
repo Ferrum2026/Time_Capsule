@@ -14,12 +14,7 @@ const FIREBASE_SYNC_CONFIG = {
 
   // Parent path in Realtime Database
   firebasePath: 'capsuleEntries',
-
-  // Optional. If your DB rules require auth, set your database secret here.
-  // Leave blank to use ScriptApp OAuth token.
   databaseSecret: '',
-
-  // Google Form question titles (must match exactly)
   nameField: 'Full name',
   messageField: 'Message to your future self'
 };
@@ -28,10 +23,12 @@ const FIREBASE_SYNC_CONFIG = {
 const STRICT_NAME_PATTERN = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
 function onFormSubmit(e) {
-  const namedValues = getNamedValuesFromEventOrLatestResponse(e);
+  if (!e || !e.namedValues) {
+    throw new Error('Missing event payload. Run from an installable form-submit trigger.');
+  }
 
-  const displayName = normalizeName(readField(namedValues, FIREBASE_SYNC_CONFIG.nameField));
-  const message = String(readField(namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
+  const displayName = normalizeName(readField(e.namedValues, FIREBASE_SYNC_CONFIG.nameField));
+  const message = String(readField(e.namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
 
   if (!STRICT_NAME_PATTERN.test(displayName)) {
     throw new Error('Invalid name format. Use: SURNAME_FIRST NAME_M.I');
@@ -60,36 +57,9 @@ function onFormSubmit(e) {
     createdAt: nowIso,
     message,
     source: 'google-form',
-    rawFormAnswers: namedValues
+    rawFormAnswers: e.namedValues
   };
   firebasePost(`${personPath}/submissions`, submissionPayload);
-}
-
-function getNamedValuesFromEventOrLatestResponse(e) {
-  if (e && e.namedValues) return e.namedValues;
-
-  // Editor/manual fallback: use the most recent Form response.
-  const form = FormApp.getActiveForm();
-  if (!form) {
-    throw new Error('No active Form found. Bind this script to your Google Form.');
-  }
-
-  const responses = form.getResponses();
-  if (!responses.length) {
-    throw new Error('No form responses found to test with.');
-  }
-
-  const latest = responses[responses.length - 1];
-  const itemResponses = latest.getItemResponses();
-  const namedValues = {};
-  itemResponses.forEach((itemResponse) => {
-    const title = String(itemResponse.getItem().getTitle() || '').trim();
-    const answer = itemResponse.getResponse();
-    const text = Array.isArray(answer) ? answer.join(', ') : String(answer || '').trim();
-    namedValues[title] = [text];
-  });
-
-  return namedValues;
 }
 
 function readField(namedValues, fieldName) {
@@ -133,7 +103,6 @@ function firebaseRequest(method, path, payload) {
     ? `auth=${encodeURIComponent(secret)}`
     : `access_token=${encodeURIComponent(ScriptApp.getOAuthToken())}`;
   const url = `${base}/${path}.json?${authQuery}`;
-
   const response = UrlFetchApp.fetch(url, {
     method,
     contentType: 'application/json',
@@ -147,4 +116,23 @@ function firebaseRequest(method, path, payload) {
   }
 
   return JSON.parse(response.getContentText() || 'null');
+}
+
+function readField(namedValues, fieldName) {
+  const value = namedValues[fieldName] || namedValues[String(fieldName || '').trim()];
+  if (!value || !value.length) {
+    throw new Error(`Missing form field: ${fieldName}`);
+  }
+  return String(value[0] || '').trim();
+}
+
+function normalizeName(rawValue) {
+  return String(rawValue || '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+function slugifyName(name) {
+  return normalizeName(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'unnamed-participant';
 }
