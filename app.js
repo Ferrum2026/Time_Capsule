@@ -397,6 +397,139 @@ document.addEventListener('DOMContentLoaded', () => {
           uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
         }
       }
+          displayName,
+          normalizedName: personKey,
+        }
+      }), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
+
+      await withTimeout(newSubmissionRef.set({
+        createdAt: nowIso,
+        message,
+        attachments: [],
+        storageManifest: null,
+      }), 30000, 'Submission write timed out. Check Firebase Realtime Database rules and try again.');
+
+      let uploadWarning = '';
+      if (files.length && storage) {
+        try {
+          setStatus('Database saved. Uploading files to Firebase Storage...', 'loading');
+          const attachments = await uploadFiles(personKey, submissionKey, files);
+          const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+            displayName,
+            normalizedName: personKey,
+            createdAt: nowIso,
+            message,
+            attachments,
+          });
+          await withTimeout(newSubmissionRef.update({
+            attachments,
+            storageManifest: manifest,
+          }), 30000, 'Database update timed out while attaching uploaded files.');
+        } catch (uploadError) {
+          uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
+        }
+      }
+          displayName,
+          normalizedName: personKey,
+        }
+      }), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
+
+      await withTimeout(newSubmissionRef.set({
+        createdAt: nowIso,
+        message,
+        attachments: [],
+        storageManifest: null,
+      }), 30000, 'Submission write timed out. Check Firebase Realtime Database rules and try again.');
+
+      let uploadWarning = '';
+      if (files.length && storage) {
+        try {
+          setStatus('Database saved. Uploading files to Firebase Storage...', 'loading');
+          const attachments = await uploadFiles(personKey, submissionKey, files);
+          const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+            displayName,
+            normalizedName: personKey,
+            createdAt: nowIso,
+            message,
+            attachments,
+          });
+          await withTimeout(newSubmissionRef.update({
+            attachments,
+            storageManifest: manifest,
+          }), 30000, 'Database update timed out while attaching uploaded files.');
+        } catch (uploadError) {
+          uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
+        }
+      }
+          displayName,
+          normalizedName: personKey,
+        }
+      }), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
+
+      await withTimeout(newSubmissionRef.set({
+        createdAt: nowIso,
+        message,
+        attachments: [],
+        storageManifest: null,
+      }), 30000, 'Submission write timed out. Check Firebase Realtime Database rules and try again.');
+
+      let uploadWarning = '';
+      if (files.length && storage) {
+        try {
+          setStatus('Database saved. Uploading files to Firebase Storage...', 'loading');
+          const attachments = await uploadFiles(personKey, submissionKey, files);
+          const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+            displayName,
+            normalizedName: personKey,
+            createdAt: nowIso,
+            message,
+            attachments,
+          });
+          await withTimeout(newSubmissionRef.update({
+            attachments,
+            storageManifest: manifest,
+          }), 30000, 'Database update timed out while attaching uploaded files.');
+        } catch (uploadError) {
+          uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
+        }
+      }
+      await withTimeout(Promise.all([
+        personRef.child('profile').set({
+          displayName,
+          normalizedName: personKey,
+        }),
+        personRef.update({
+          displayName,
+          updatedAt: nowIso,
+        }),
+        newSubmissionRef.set({
+          createdAt: nowIso,
+          message,
+          attachments: [],
+          storageManifest: null,
+        })
+      ]), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
+
+      let uploadWarning = '';
+      if (files.length && storage) {
+        try {
+          setStatus('Database saved. Uploading files to Firebase Storage...', 'loading');
+          const attachments = await uploadFiles(personKey, submissionKey, files);
+          const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+            displayName,
+            normalizedName: personKey,
+            createdAt: nowIso,
+            message,
+            attachments,
+          });
+          await withTimeout(newSubmissionRef.update({
+            attachments,
+            storageManifest: manifest,
+          }), 30000, 'Database update timed out while attaching uploaded files.');
+        } catch (uploadError) {
+          uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
+        }
+      }
 
       els.form.reset();
       const successMessage = 'Saved successfully. Repeat submissions using the same name will stay under the same participant category.';
