@@ -141,15 +141,31 @@ Use `google-form-sync.gs` instead:
 2. Paste `google-form-sync.gs` content.
 3. Update these values in `FIREBASE_SYNC_CONFIG`:
    - `databaseUrl`
-   - `storageBucket`
    - `firebasePath`
    - `databaseSecret` (optional; only if your Realtime Database rules require `auth`)
    - `nameField` and `messageField` (must match Form question titles exactly)
 4. Add an installable trigger: **onFormSubmit** → **From form** → **On form submit**.
 
-This script enforces strict uppercase format `SURNAME_FIRST NAME_M.I`, writes each submission to Realtime Database, and uploads `submission.json` to Firebase Storage under:
+This script enforces strict uppercase format `SURNAME_FIRST NAME_M.I` and writes each submission directly to Realtime Database under `capsuleEntries/{person-slug}/submissions/{autoId}`.
 
-```text
-capsuleEntries/{person-slug}/{submissionKey}/submission.json
-```
+For now, Google Form sync writes text-only submissions (`attachments: []`) directly to Firebase so the board stays in sync first.
 
+Important auth note for Apps Script:
+- If your Realtime Database rules allow public writes for testing, leave `databaseSecret` blank.
+- If your rules require auth, set `databaseSecret` to a valid Realtime Database secret (legacy projects) or adjust rules to accept your write method.
+
+---
+
+## 9. Optional: copy website uploads to Google Drive (auto-create folder per person)
+
+If you want files uploaded from the **website form** to also be copied into Google Drive:
+
+1. Create a standalone Apps Script project and paste `drive-sync-webhook.gs`.
+2. Set `DRIVE_SYNC_CONFIG.rootFolderId` (optional) and `DRIVE_SYNC_CONFIG.apiKey` (optional).
+3. Deploy as **Web app** and copy the `/exec` URL.
+4. In `firebase-config.js`, set:
+   - `appConfig.driveSync.enabled = true`
+   - `appConfig.driveSync.webhookUrl = 'https://script.google.com/macros/s/.../exec'`
+   - `appConfig.driveSync.apiKey = 'same key you put in DRIVE_SYNC_CONFIG.apiKey'` (optional)
+
+The website will still save to Firebase first, then call the webhook after uploads complete. The webhook creates (or reuses) a folder per participant and copies each uploaded file into that folder.
