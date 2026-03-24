@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!url) {
       links.forEach((link) => link.classList.add('hidden'));
       if (els.legacyFormHelp) {
+        els.legacyFormHelp.textContent = 'Set googleFormUrl in firebase-config.js to show this fallback link. Use the Firebase form above to save entries in the board.';
         els.legacyFormHelp.classList.remove('hidden');
       }
       return;
@@ -82,7 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
       link.classList.remove('hidden');
     });
     if (els.legacyFormHelp) {
-      els.legacyFormHelp.classList.add('hidden');
+      els.legacyFormHelp.textContent = 'Google Form submissions do not automatically sync to this Firebase board. Use the Firebase form above to save entries here.';
+      els.legacyFormHelp.classList.remove('hidden');
     }
   }
 
