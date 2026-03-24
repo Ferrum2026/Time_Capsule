@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const isForcedOpen = config.forceOpenVault === true;
   const firebasePath = config.firebasePath || 'capsuleEntries';
   const legacyFormUrl = String(config.googleFormUrl || '').trim();
-  const namePattern = /^[A-Za-z][A-Za-z' -]*_[A-Za-z][A-Za-z' -]*_[A-Za-z](\.[A-Za-z])?\.?$/;
+  const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
   const els = {
     title: document.getElementById('site-title'),
@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function validateName(name) {
     const normalized = normalizeName(name);
     if (!namePattern.test(normalized)) {
-      throw new Error('Use this format: SURNAME_FIRST NAME_M.I');
+      throw new Error('Use UPPERCASE strict format: SURNAME_FIRST NAME_M.I');
     }
     return normalized;
   }
@@ -240,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const uploads = files.map(async (file) => {
       const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const path = `${firebasePath}/${personKey}/${safeName}`;
+      const path = `${firebasePath}/${personKey}/${submissionKey}/files/${safeName}`;
       const snapshot = await storage.ref(path).put(file);
       const url = await snapshot.ref.getDownloadURL();
       return {
@@ -253,6 +253,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     return Promise.all(uploads);
+  }
+
+  async function uploadSubmissionManifest(personKey, submissionKey, payload) {
+    if (!storage) {
+      throw new Error('Firebase Storage is not ready.');
+    }
+
+    const path = `${firebasePath}/${personKey}/${submissionKey}/submission.json`;
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const snapshot = await storage.ref(path).put(blob);
+    const url = await snapshot.ref.getDownloadURL();
+    return { path, url };
   }
 
   async function handleFormSubmit(event) {
@@ -276,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error('Please enter a short message before saving.');
       }
 
-      setStatus(files.length ? 'Uploading files and saving your entry...' : 'Saving your entry...', 'loading');
+      setStatus('Syncing your submission to Firebase Storage and Database...', 'loading');
 
       let attachments = [];
       let uploadWarning = '';
@@ -290,6 +302,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const nowIso = new Date().toISOString();
       const personRef = database.ref(`${firebasePath}/${personKey}`);
       const newSubmissionRef = personRef.child('submissions').push();
+      const submissionKey = newSubmissionRef.key || `submission-${Date.now()}`;
+
+      const attachments = await uploadFiles(personKey, submissionKey, files);
+      const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+        displayName,
+        normalizedName: personKey,
+        createdAt: nowIso,
+        message,
+        attachments,
+      });
 
       await personRef.child('profile').set({
         displayName,
@@ -305,6 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
         createdAt: nowIso,
         message,
         attachments,
+        storageManifest: manifest,
       });
 
       els.form.reset();
