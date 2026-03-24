@@ -316,6 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
+  }
 
     database = firebase.database();
   }
