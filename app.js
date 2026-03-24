@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const revealDate = new Date(config.revealIso || Date.now());
   const isForcedOpen = config.forceOpenVault === true;
   const firebasePath = config.firebasePath || 'capsuleEntries';
+  const driveSyncConfig = config.driveSync || {};
   const legacyFormUrl = String(config.googleFormUrl || '').trim();
   const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
@@ -293,6 +294,34 @@ document.addEventListener('DOMContentLoaded', () => {
     return { path, url };
   }
 
+  async function syncSubmissionToDrive(payload) {
+    const webhookUrl = String(driveSyncConfig.webhookUrl || '').trim();
+    if (!webhookUrl) return null;
+    const apiKey = String(driveSyncConfig.apiKey || '').trim();
+    const requestUrl = apiKey
+      ? `${webhookUrl}${webhookUrl.includes('?') ? '&' : '?'}key=${encodeURIComponent(apiKey)}`
+      : webhookUrl;
+
+    const response = await fetch(requestUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`Drive sync failed (${response.status}): ${text || 'No response body'}`);
+    }
+
+    try {
+      return JSON.parse(text || '{}');
+    } catch (_) {
+      return { ok: true };
+    }
+  }
+
   async function handleFormSubmit(event) {
     event.preventDefault();
 
@@ -325,6 +354,49 @@ document.addEventListener('DOMContentLoaded', () => {
         displayName,
         updatedAt: nowIso,
         profile: {
+          displayName,
+          normalizedName: personKey,
+        }
+      }), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
+
+      await withTimeout(newSubmissionRef.set({
+        createdAt: nowIso,
+        message,
+        attachments: [],
+        storageManifest: null,
+      }), 30000, 'Submission write timed out. Check Firebase Realtime Database rules and try again.');
+
+      let uploadWarning = '';
+      if (files.length && storage) {
+        try {
+          setStatus('Database saved. Uploading files to Firebase Storage...', 'loading');
+          const attachments = await uploadFiles(personKey, submissionKey, files);
+          const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+            displayName,
+            normalizedName: personKey,
+            createdAt: nowIso,
+            message,
+            attachments,
+          });
+          await withTimeout(newSubmissionRef.update({
+            attachments,
+            storageManifest: manifest,
+          }), 30000, 'Database update timed out while attaching uploaded files.');
+
+          if (driveSyncConfig.enabled !== false && attachments.length) {
+            setStatus('Files uploaded. Syncing copies to Google Drive...', 'loading');
+            await syncSubmissionToDrive({
+              personKey,
+              displayName,
+              createdAt: nowIso,
+              submissionKey,
+              attachments,
+            });
+          }
+        } catch (uploadError) {
+          uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
+        }
+      }
           displayName,
           normalizedName: personKey,
         }
