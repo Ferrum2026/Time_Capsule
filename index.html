@@ -28,7 +28,8 @@
       <div>
         <p class="eyebrow">CHANGE THE DATE IN <code>firebase-config.js</code></p>
         <h2 class="hero-title">The vault stays locked until the timer ends.</h2>
-        <p class="hero-copy">Participants can submit a short message plus any file uploads now. Everything is grouped by participant name, and uploaded files are saved in Firebase Storage while the message + file links are saved in Firebase Realtime Database.</p>
+        <p class="hero-copy">Participants can submit a short message plus any file uploads now. Everything is grouped by participant name, and file storage is focused on Firebase first with optional Google Drive mirroring.</p>
+        <p class="timer-note" id="force-open-hint" aria-live="polite"></p>
         <div class="countdown" id="countdown">
           <div><span id="cd-days">00</span><small>Days</small></div>
           <div><span id="cd-hours">00</span><small>Hours</small></div>
@@ -78,9 +79,9 @@
 
       <article class="pin-card text-card form-card legacy-form-card">
         <span class="pin-label">Storage Priority</span>
-        <h3>Files Saved in Storage</h3>
-        <p>Google Forms are currently on hold. The active flow stores uploaded files in Firebase Storage, then writes name, message, and file metadata links to Firebase Realtime Database.</p>
-        <p class="helper-text">Set <code>forceOpenVault</code> to <code>true</code> for testing open mode, or <code>false</code> to use the timer lock.</p>
+        <h3>Files: Firebase First</h3>
+        <p>Google Forms are currently on hold. The active flow stores files in Firebase Storage and writes metadata to Firebase Realtime Database.</p>
+        <p class="helper-text"><strong>Optional:</strong> you can also mirror uploaded files to Google Drive by enabling <code>driveSync.enabled</code> in <code>firebase-config.js</code> and adding a valid webhook URL.</p>
       </article>
 
       <article class="pin-card media-card">
@@ -111,6 +112,13 @@
         <h3>Name format required</h3>
         <p>Tell every participant to use the same format every time so repeat submissions stay grouped together under one Firebase category.</p>
         <p class="name-format">SURNAME_FIRST NAME_M.I</p>
+      </article>
+
+      <article class="pin-card text-card form-card">
+        <span class="pin-label">Force Open Control</span>
+        <h3>Manual Open Switch (for testing)</h3>
+        <p>Open <code>firebase-config.js</code> and change <code>forceOpenVault</code> to <code>true</code> to open immediately, or <code>false</code> to enforce the reveal timer.</p>
+        <p class="helper-text">This is the exact setting that controls forced opening.</p>
       </article>
 
       <article class="pin-card media-card">
@@ -154,7 +162,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script src="app.js"></script>
 </body>
