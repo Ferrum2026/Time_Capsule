@@ -235,13 +235,32 @@ document.addEventListener('DOMContentLoaded', () => {
     els.formStatus.className = `form-status ${type || ''}`.trim();
   }
 
+  async function withTimeout(taskPromise, timeoutMs, timeoutMessage) {
+    let timeoutId = null;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(timeoutMessage));
+      }, timeoutMs);
+    });
+
+    try {
+      return await Promise.race([taskPromise, timeoutPromise]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
+
   async function uploadFiles(personKey, submissionKey, files) {
     if (!files.length || !storage) return [];
 
     const uploads = files.map(async (file) => {
       const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
       const path = `${firebasePath}/${personKey}/${submissionKey}/files/${safeName}`;
-      const snapshot = await storage.ref(path).put(file);
+      const snapshot = await withTimeout(
+        storage.ref(path).put(file),
+        30000,
+        'File upload timed out. Check Firebase Storage rules and your connection, then try again.'
+      );
       const url = await snapshot.ref.getDownloadURL();
       return {
         name: file.name,
@@ -262,7 +281,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const path = `${firebasePath}/${personKey}/${submissionKey}/submission.json`;
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const snapshot = await storage.ref(path).put(blob);
+    const snapshot = await withTimeout(
+      storage.ref(path).put(blob),
+      30000,
+      'Submission manifest upload timed out. Check Firebase Storage setup and try again.'
+    );
     const url = await snapshot.ref.getDownloadURL();
     return { path, url };
   }
@@ -304,22 +327,22 @@ document.addEventListener('DOMContentLoaded', () => {
         attachments,
       });
 
-      await personRef.child('profile').set({
-        displayName,
-        normalizedName: personKey,
-      });
-
-      await personRef.update({
-        displayName,
-        updatedAt: nowIso,
-      });
-
-      await newSubmissionRef.set({
-        createdAt: nowIso,
-        message,
-        attachments,
-        storageManifest: manifest,
-      });
+      await withTimeout(Promise.all([
+        personRef.child('profile').set({
+          displayName,
+          normalizedName: personKey,
+        }),
+        personRef.update({
+          displayName,
+          updatedAt: nowIso,
+        }),
+        newSubmissionRef.set({
+          createdAt: nowIso,
+          message,
+          attachments,
+          storageManifest: manifest,
+        })
+      ]), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
 
       els.form.reset();
       setStatus('Saved successfully. Repeat submissions using the same name will stay under the same participant category.', 'success');
