@@ -19,7 +19,7 @@ const appConfig = {
   revealIso: '2027-04-26T23:07:30',
 
   // 2) Set to true if you want to TEST the open vault immediately.
-  forceOpenVault: true,
+  forceOpenVault: false,
 
   // 3) Firebase path where the website stores entries.
   firebasePath: 'capsuleEntries',
