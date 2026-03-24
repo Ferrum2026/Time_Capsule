@@ -61,20 +61,7 @@ Each person node stores:
 Each submission stores:
 - `createdAt`
 - `message`
-- `attachments[]`
-- `storageManifest` (path + URL of the JSON snapshot in Storage)
-
-Firebase Storage stores files under:
-
-```text
-capsuleEntries/{person-slug}/{submissionKey}/files/{timestamp-fileName}
-```
-
-Each submission also writes a JSON snapshot to:
-
-```text
-capsuleEntries/{person-slug}/{submissionKey}/submission.json
-```
+- `attachments[]` containing `{ name, type, size, dataUrl }`
 
 ---
 
@@ -96,9 +83,8 @@ If `driveSync.enabled` is `false`, uploads stay Firebase-only.
 
 ## 5. Firebase setup
 
-Enable these Firebase products:
+Enable this Firebase product:
 - **Realtime Database**
-- **Storage**
 
 Then place your Firebase web config inside `firebase-config.js`.
 
