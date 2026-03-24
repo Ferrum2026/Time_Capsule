@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const revealDate = new Date(config.revealIso || Date.now());
   const isForcedOpen = parseBoolean(config.forceOpenVault);
   const firebasePath = config.firebasePath || 'capsuleEntries';
+  const driveSyncConfig = config.driveSync || {};
+  const isDriveSyncEnabled = parseBoolean(driveSyncConfig.enabled);
   const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
   const els = {
@@ -55,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
   els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
 
   let database = null;
-  let storage = null;
 
   function setVideoSource(video, path) {
     if (!path) return;
@@ -181,12 +182,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderAttachment(item) {
+    const dataUrl = item && item.dataUrl ? item.dataUrl : '';
     const url = item && item.url ? item.url : '';
-    const previewUrl = item && item.previewUrl ? item.previewUrl : '';
     const downloadUrl = item && item.downloadUrl ? item.downloadUrl : '';
     const type = (item && item.type ? item.type : '').toLowerCase();
     const name = item && item.name ? item.name : 'Open file';
-    const mediaUrl = previewUrl || downloadUrl || url;
+    const mediaUrl = dataUrl || downloadUrl || url;
     if (!mediaUrl) return '';
 
     if (type.startsWith('image/')) {
@@ -198,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (type.startsWith('audio/')) {
       return `<audio controls src="${escapeAttribute(mediaUrl)}"></audio>`;
     }
-    return `<a class="entry-link" href="${escapeAttribute(mediaUrl)}" target="_blank" rel="noreferrer">${escapeHtml(name)}</a>`;
+    return `<a class="entry-link" href="${escapeAttribute(mediaUrl)}" target="_blank" rel="noreferrer" download="${escapeAttribute(name)}">${escapeHtml(name)}</a>`;
   }
 
   function escapeHtml(value) {
@@ -232,44 +233,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function uploadFiles(personKey, submissionKey, files) {
-    if (!files.length || !storage) return [];
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result || '');
+      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+  }
 
-    const uploads = files.map(async (file) => {
-      const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const path = `${firebasePath}/${personKey}/${submissionKey}/files/${safeName}`;
-      const snapshot = await withTimeout(
-        storage.ref(path).put(file),
+  async function buildAttachmentPayloads(files) {
+    const payloads = files.map(async (file) => {
+      const dataUrl = await withTimeout(
+        readFileAsDataUrl(file),
         30000,
-        `File upload timed out: ${file.name}`
+        `Reading file timed out: ${file.name}`
       );
-      const url = await snapshot.ref.getDownloadURL();
       return {
         name: file.name,
         type: file.type || 'application/octet-stream',
         size: file.size || 0,
-        path,
-        url,
+        dataUrl,
       };
     });
 
-    return Promise.all(uploads);
-  }
-
-  async function uploadSubmissionManifest(personKey, submissionKey, payload) {
-    if (!storage) {
-      throw new Error('Firebase Storage is not ready.');
-    }
-
-    const path = `${firebasePath}/${personKey}/${submissionKey}/submission.json`;
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const snapshot = await withTimeout(
-      storage.ref(path).put(blob),
-      30000,
-      'Submission manifest upload timed out.'
-    );
-    const url = await snapshot.ref.getDownloadURL();
-    return { path, url };
+    return Promise.all(payloads);
   }
 
   async function handleFormSubmit(event) {
@@ -293,12 +281,12 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error('Please enter a short message before saving.');
       }
 
-      setStatus('Saving to Firebase Realtime Database...', 'loading');
+      setStatus('Preparing files and saving everything to Firebase Realtime Database...', 'loading');
 
       const nowIso = new Date().toISOString();
+      const attachments = files.length ? await buildAttachmentPayloads(files) : [];
       const personRef = database.ref(`${firebasePath}/${personKey}`);
       const newSubmissionRef = personRef.child('submissions').push();
-      const submissionKey = newSubmissionRef.key || `submission-${Date.now()}`;
 
       await withTimeout(Promise.all([
         personRef.child('profile').set({
@@ -312,20 +300,31 @@ document.addEventListener('DOMContentLoaded', () => {
         newSubmissionRef.set({
           createdAt: nowIso,
           message,
-          attachments: [],
-          storageManifest: null,
+          attachments,
         })
       ]), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
 
       let uploadWarning = '';
-      if (files.length) {
-        if (!storage) {
-          uploadWarning = ' Entry saved, but Firebase Storage is unavailable.';
-        } else {
-          try {
-            setStatus('Entry saved. Uploading files to Firebase Storage...', 'loading');
-            const attachments = await uploadFiles(personKey, submissionKey, files);
-            const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+      if (files.length && storage) {
+        try {
+          setStatus('Database saved. Uploading files to Firebase Storage...', 'loading');
+          const attachments = await uploadFiles(personKey, submissionKey, files);
+          const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+            displayName,
+            normalizedName: personKey,
+            createdAt: nowIso,
+            message,
+            attachments,
+          });
+          await withTimeout(newSubmissionRef.update({
+            attachments,
+            storageManifest: manifest,
+          }), 30000, 'Database update timed out while attaching uploaded files.');
+
+          if (isDriveSyncEnabled && attachments.length) {
+            setStatus('Files uploaded to Firebase. Mirroring copies to Google Drive...', 'loading');
+            await syncSubmissionToDrive({
+              personKey,
               displayName,
               normalizedName: personKey,
               createdAt: nowIso,
@@ -344,8 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       els.form.reset();
-      const successMessage = 'Saved successfully. Repeat submissions using the same name will stay under the same participant category.';
-      setStatus(uploadWarning ? `${successMessage}${uploadWarning}` : successMessage, uploadWarning ? 'error' : 'success');
+      setStatus('Saved successfully to Firebase Realtime Database.', 'success');
     } catch (error) {
       setStatus(error.message || 'Failed to save the entry.', 'error');
     } finally {
@@ -366,7 +364,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       database = firebase.database();
-      storage = firebase.storage();
     } catch (error) {
       renderEntries([]);
       setStatus(`Firebase initialization failed: ${error.message || 'Unknown error'}`, 'error');
