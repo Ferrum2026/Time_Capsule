@@ -141,15 +141,15 @@ Use `google-form-sync.gs` instead:
 2. Paste `google-form-sync.gs` content.
 3. Update these values in `FIREBASE_SYNC_CONFIG`:
    - `databaseUrl`
-   - `storageBucket`
    - `firebasePath`
    - `databaseSecret` (optional; only if your Realtime Database rules require `auth`)
    - `nameField` and `messageField` (must match Form question titles exactly)
 4. Add an installable trigger: **onFormSubmit** → **From form** → **On form submit**.
 
-This script enforces strict uppercase format `SURNAME_FIRST NAME_M.I`, writes each submission to Realtime Database, and uploads `submission.json` to Firebase Storage under:
+This script enforces strict uppercase format `SURNAME_FIRST NAME_M.I` and writes each submission directly to Realtime Database under `capsuleEntries/{person-slug}/submissions/{autoId}`.
 
-```text
-capsuleEntries/{person-slug}/{submissionKey}/submission.json
-```
+For now, Google Form sync writes text-only submissions (`attachments: []`) directly to Firebase so the board stays in sync first.
 
+Important auth note for Apps Script:
+- If your Realtime Database rules allow public writes for testing, leave `databaseSecret` blank.
+- If your rules require auth, set `databaseSecret` to a valid Realtime Database secret (legacy projects) or adjust rules to accept your write method.
