@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const revealDate = new Date(config.revealIso || Date.now());
   const isForcedOpen = config.forceOpenVault === true;
   const firebasePath = config.firebasePath || 'capsuleEntries';
+  const driveSyncConfig = config.driveSync || {};
   const legacyFormUrl = String(config.googleFormUrl || '').trim();
   const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
@@ -201,20 +202,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderAttachment(item) {
     const url = item && item.url ? item.url : '';
+    const previewUrl = item && item.previewUrl ? item.previewUrl : '';
+    const downloadUrl = item && item.downloadUrl ? item.downloadUrl : '';
     const type = (item && item.type ? item.type : '').toLowerCase();
     const name = item && item.name ? item.name : 'Open file';
     if (!url) return '';
+    const mediaUrl = previewUrl || downloadUrl || url;
 
     if (type.startsWith('image/')) {
-      return `<img src="${escapeAttribute(url)}" alt="${escapeAttribute(name)}">`;
+      return `<a class="entry-link" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer"><img src="${escapeAttribute(mediaUrl)}" alt="${escapeAttribute(name)}"></a>`;
     }
     if (type.startsWith('video/')) {
-      return `<video controls src="${escapeAttribute(url)}"></video>`;
+      return `<video controls src="${escapeAttribute(mediaUrl)}"></video>`;
     }
     if (type.startsWith('audio/')) {
-      return `<audio controls src="${escapeAttribute(url)}"></audio>`;
+      return `<audio controls src="${escapeAttribute(mediaUrl)}"></audio>`;
     }
-    return `<a class="entry-link" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer">${escapeHtml(name)}</a>`;
+    return `<a class="entry-link" href="${escapeAttribute(downloadUrl || url)}" target="_blank" rel="noreferrer">${escapeHtml(name)}</a>`;
   }
 
   function escapeHtml(value) {
@@ -288,6 +292,34 @@ document.addEventListener('DOMContentLoaded', () => {
     );
     const url = await snapshot.ref.getDownloadURL();
     return { path, url };
+  }
+
+  async function syncSubmissionToDrive(payload) {
+    const webhookUrl = String(driveSyncConfig.webhookUrl || '').trim();
+    if (!webhookUrl) return null;
+    const apiKey = String(driveSyncConfig.apiKey || '').trim();
+    const requestUrl = apiKey
+      ? `${webhookUrl}${webhookUrl.includes('?') ? '&' : '?'}key=${encodeURIComponent(apiKey)}`
+      : webhookUrl;
+
+    const response = await fetch(requestUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`Drive sync failed (${response.status}): ${text || 'No response body'}`);
+    }
+
+    try {
+      return JSON.parse(text || '{}');
+    } catch (_) {
+      return { ok: true };
+    }
   }
 
   async function handleFormSubmit(event) {
@@ -387,6 +419,17 @@ document.addEventListener('DOMContentLoaded', () => {
             attachments,
             storageManifest: manifest,
           }), 30000, 'Database update timed out while attaching uploaded files.');
+
+          if (driveSyncConfig.enabled !== false && attachments.length) {
+            setStatus('Files uploaded. Syncing copies to Google Drive...', 'loading');
+            await syncSubmissionToDrive({
+              personKey,
+              displayName,
+              createdAt: nowIso,
+              submissionKey,
+              attachments,
+            });
+          }
         } catch (uploadError) {
           uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
         }
@@ -401,6 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
       submitButton.disabled = false;
     }
   }
+
 
   function loadEntries() {
     if (!firebaseConfig || typeof firebase === 'undefined' || !firebase.apps) {
