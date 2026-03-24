@@ -11,8 +11,6 @@ const FIREBASE_SYNC_CONFIG = {
   databaseUrl: 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app',
   storageBucket: 'batchcapsule.firebasestorage.app',
   firebasePath: 'capsuleEntries',
-  // Optional: use only if your database rules require auth param.
-  databaseSecret: '',
   nameField: 'Full name',
   messageField: 'Message to your future self'
 };
@@ -20,12 +18,12 @@ const FIREBASE_SYNC_CONFIG = {
 const STRICT_NAME_PATTERN = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
 function onFormSubmit(e) {
-  const eventPayload = (e && e.namedValues) ? e : buildEventFromLatestFormResponse();
+  if (!e || !e.namedValues) {
+    throw new Error('Missing event payload. Run this from a real Form Submit trigger.');
+  }
 
-  const name = normalizeName(readField(eventPayload.namedValues, FIREBASE_SYNC_CONFIG.nameField));
-  const message = String(readField(eventPayload.namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
-  Logger.log(`Resolved name field: ${FIREBASE_SYNC_CONFIG.nameField}`);
-  Logger.log(`Resolved message field: ${FIREBASE_SYNC_CONFIG.messageField}`);
+  const name = normalizeName(readField(e.namedValues, FIREBASE_SYNC_CONFIG.nameField));
+  const message = String(readField(e.namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
 
   if (!STRICT_NAME_PATTERN.test(name)) {
     throw new Error('Use UPPERCASE strict format: SURNAME_FIRST NAME_M.I');
@@ -43,7 +41,7 @@ function onFormSubmit(e) {
     message,
     attachments: [],
     source: 'google-form',
-    rawFormAnswers: eventPayload.namedValues
+    rawFormAnswers: e.namedValues
   };
 
   const manifestPath = `${FIREBASE_SYNC_CONFIG.firebasePath}/${personKey}/${submissionKey}/submission.json`;
@@ -71,30 +69,6 @@ function onFormSubmit(e) {
       url: manifestUrl
     }
   });
-}
-
-
-function buildEventFromLatestFormResponse() {
-  const form = FormApp.getActiveForm();
-  if (!form) {
-    throw new Error('No active Google Form was found. Open this script from the Form or use a real submit trigger.');
-  }
-
-  const responses = form.getResponses();
-  if (!responses.length) {
-    throw new Error('No Form responses found yet. Submit one response first, then run again.');
-  }
-
-  const latest = responses[responses.length - 1];
-  const namedValues = {};
-  latest.getItemResponses().forEach((itemResponse) => {
-    const title = itemResponse.getItem().getTitle();
-    const rawResponse = itemResponse.getResponse();
-    const value = Array.isArray(rawResponse) ? rawResponse.join(', ') : String(rawResponse || '');
-    namedValues[title] = [value];
-  });
-
-  return { namedValues };
 }
 
 function uploadJsonManifest(path, payload) {
@@ -127,11 +101,9 @@ function firebasePatch(path, payload) {
 }
 
 function firebaseRequest(method, path, payload) {
+  const token = ScriptApp.getOAuthToken();
   const base = FIREBASE_SYNC_CONFIG.databaseUrl.replace(/\/$/, '');
-  const query = FIREBASE_SYNC_CONFIG.databaseSecret
-    ? `?auth=${encodeURIComponent(FIREBASE_SYNC_CONFIG.databaseSecret)}`
-    : '';
-  const url = `${base}/${path}.json${query}`;
+  const url = `${base}/${path}.json?access_token=${encodeURIComponent(token)}`;
   const response = UrlFetchApp.fetch(url, {
     method,
     contentType: 'application/json',
@@ -150,21 +122,9 @@ function firebaseRequest(method, path, payload) {
 function readField(namedValues, fieldName) {
   const value = namedValues[fieldName];
   if (!value || !value.length) {
-    const available = Object.keys(namedValues || {}).join(', ');
-    throw new Error(`Missing form field: ${fieldName}. Available fields: ${available}`);
+    throw new Error(`Missing form field: ${fieldName}`);
   }
   return String(value[0] || '').trim();
-}
-
-
-function testFirebaseWrite() {
-  const fakeEvent = {
-    namedValues: {
-      [FIREBASE_SYNC_CONFIG.nameField]: ['DELA CRUZ_JUAN_P.'],
-      [FIREBASE_SYNC_CONFIG.messageField]: ['Test message from Apps Script']
-    }
-  };
-  onFormSubmit(fakeEvent);
 }
 
 function normalizeName(rawValue) {
