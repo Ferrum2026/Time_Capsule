@@ -147,12 +147,6 @@ Use `google-form-sync.gs` instead:
    - `nameField` and `messageField` (must match Form question titles exactly)
 4. Add an installable trigger: **onFormSubmit** → **From form** → **On form submit**.
 
-5. You can run `onFormSubmit()` manually for debugging: it will read the **latest form response** if no trigger payload is provided.
-6. (Optional) run `testFirebaseWrite()` once in Apps Script to verify data appears under `capsuleEntries/...`.
-
-   - `nameField` and `messageField` (must match Form question titles exactly)
-4. Add an installable trigger: **onFormSubmit** → **From form** → **On form submit**.
-
 This script enforces strict uppercase format `SURNAME_FIRST NAME_M.I`, writes each submission to Realtime Database, and uploads `submission.json` to Firebase Storage under:
 
 ```text

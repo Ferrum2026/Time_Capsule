@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function normalizeName(rawValue) {
-    return String(rawValue || '').trim().replace(/\s+/g, ' ');
+    return String(rawValue || '').trim().replace(/\s+/g, ' ').toUpperCase();
   }
 
   function slugifyName(name) {
