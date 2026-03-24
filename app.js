@@ -57,10 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
   if (els.forceOpenHint) {
     const state = isForcedOpen ? 'ENABLED' : 'DISABLED';
-    const openHelp = isForcedOpen
-      ? 'The vault is forced open now.'
-      : `The vault will open on ${formatDate(revealDate)}.`;
-    els.forceOpenHint.textContent = `forceOpenVault is currently ${state} in firebase-config.js. ${openHelp}`;
+    els.forceOpenHint.textContent = `forceOpenVault is currently ${state} in firebase-config.js`;
     els.forceOpenHint.classList.toggle('is-enabled', isForcedOpen);
   }
 
@@ -75,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function formatDate(date) {
     if (Number.isNaN(date.getTime())) return 'Invalid date';
     return date.toLocaleString(undefined, {
-      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short'
+      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
   }
 
