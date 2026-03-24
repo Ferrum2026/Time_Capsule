@@ -5,8 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const revealDate = new Date(config.revealIso || Date.now());
   const isForcedOpen = parseBoolean(config.forceOpenVault);
   const firebasePath = config.firebasePath || 'capsuleEntries';
-  const driveSyncConfig = config.driveSync || {};
-  const legacyFormUrl = String(config.googleFormUrl || '').trim();
   const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
   const els = {
@@ -26,9 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
     heroImage: document.getElementById('hero-image'),
     throwbackImage: document.getElementById('throwback-image'),
     formLinkTop: document.getElementById('form-link-top'),
-    legacyFormLinkTop: document.getElementById('legacy-form-link-top'),
-    legacyFormLinkBoard: document.getElementById('legacy-form-link-board'),
-    legacyFormHelp: document.getElementById('legacy-form-help'),
     siteLogo: document.getElementById('site-logo'),
     days: document.getElementById('cd-days'),
     hours: document.getElementById('cd-hours'),
@@ -56,7 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (els.formLinkTop) {
     els.formLinkTop.href = '#submission-form';
   }
-  applyLegacyFormLinks(legacyFormUrl);
 
   els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
 
@@ -66,27 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function setVideoSource(video, path) {
     if (!path) return;
     video.src = path;
-  }
-
-  function applyLegacyFormLinks(url) {
-    const links = [els.legacyFormLinkTop, els.legacyFormLinkBoard].filter(Boolean);
-    if (!url) {
-      links.forEach((link) => link.classList.add('hidden'));
-      if (els.legacyFormHelp) {
-        els.legacyFormHelp.textContent = 'Set googleFormUrl in firebase-config.js to show this fallback link. Use the Firebase form above to save entries in the board.';
-        els.legacyFormHelp.classList.remove('hidden');
-      }
-      return;
-    }
-
-    links.forEach((link) => {
-      link.href = url;
-      link.classList.remove('hidden');
-    });
-    if (els.legacyFormHelp) {
-      els.legacyFormHelp.textContent = 'Google Form submissions do not automatically sync to this Firebase board. Use the Firebase form above to save entries here.';
-      els.legacyFormHelp.classList.remove('hidden');
-    }
   }
 
   function formatDate(date) {
@@ -213,11 +186,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadUrl = item && item.downloadUrl ? item.downloadUrl : '';
     const type = (item && item.type ? item.type : '').toLowerCase();
     const name = item && item.name ? item.name : 'Open file';
-    if (!url) return '';
     const mediaUrl = previewUrl || downloadUrl || url;
+    if (!mediaUrl) return '';
 
     if (type.startsWith('image/')) {
-      return `<a class="entry-link" href="${escapeAttribute(url)}" target="_blank" rel="noreferrer"><img src="${escapeAttribute(mediaUrl)}" alt="${escapeAttribute(name)}"></a>`;
+      return `<a class="entry-link" href="${escapeAttribute(mediaUrl)}" target="_blank" rel="noreferrer"><img src="${escapeAttribute(mediaUrl)}" alt="${escapeAttribute(name)}"></a>`;
     }
     if (type.startsWith('video/')) {
       return `<video controls src="${escapeAttribute(mediaUrl)}"></video>`;
@@ -225,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (type.startsWith('audio/')) {
       return `<audio controls src="${escapeAttribute(mediaUrl)}"></audio>`;
     }
-    return `<a class="entry-link" href="${escapeAttribute(downloadUrl || url)}" target="_blank" rel="noreferrer">${escapeHtml(name)}</a>`;
+    return `<a class="entry-link" href="${escapeAttribute(mediaUrl)}" target="_blank" rel="noreferrer">${escapeHtml(name)}</a>`;
   }
 
   function escapeHtml(value) {
@@ -249,9 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function withTimeout(taskPromise, timeoutMs, timeoutMessage) {
     let timeoutId = null;
     const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new Error(timeoutMessage));
-      }, timeoutMs);
+      timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
     });
 
     try {
@@ -270,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const snapshot = await withTimeout(
         storage.ref(path).put(file),
         30000,
-        'File upload timed out. Check Firebase Storage rules and your connection, then try again.'
+        `File upload timed out: ${file.name}`
       );
       const url = await snapshot.ref.getDownloadURL();
       return {
@@ -295,38 +266,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const snapshot = await withTimeout(
       storage.ref(path).put(blob),
       30000,
-      'Submission manifest upload timed out. Check Firebase Storage setup and try again.'
+      'Submission manifest upload timed out.'
     );
     const url = await snapshot.ref.getDownloadURL();
     return { path, url };
-  }
-
-  async function syncSubmissionToDrive(payload) {
-    const webhookUrl = String(driveSyncConfig.webhookUrl || '').trim();
-    if (!webhookUrl) return null;
-    const apiKey = String(driveSyncConfig.apiKey || '').trim();
-    const requestUrl = apiKey
-      ? `${webhookUrl}${webhookUrl.includes('?') ? '&' : '?'}key=${encodeURIComponent(apiKey)}`
-      : webhookUrl;
-
-    const response = await fetch(requestUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const text = await response.text();
-    if (!response.ok) {
-      throw new Error(`Drive sync failed (${response.status}): ${text || 'No response body'}`);
-    }
-
-    try {
-      return JSON.parse(text || '{}');
-    } catch (_) {
-      return { ok: true };
-    }
   }
 
   async function handleFormSubmit(event) {
@@ -350,60 +293,13 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error('Please enter a short message before saving.');
       }
 
-      setStatus('Saving your entry directly to Firebase Realtime Database...', 'loading');
+      setStatus('Saving to Firebase Realtime Database...', 'loading');
 
       const nowIso = new Date().toISOString();
       const personRef = database.ref(`${firebasePath}/${personKey}`);
       const newSubmissionRef = personRef.child('submissions').push();
       const submissionKey = newSubmissionRef.key || `submission-${Date.now()}`;
 
-      await withTimeout(personRef.update({
-        displayName,
-        updatedAt: nowIso,
-        profile: {
-          displayName,
-          normalizedName: personKey,
-        }
-      }), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
-
-      await withTimeout(newSubmissionRef.set({
-        createdAt: nowIso,
-        message,
-        attachments: [],
-        storageManifest: null,
-      }), 30000, 'Submission write timed out. Check Firebase Realtime Database rules and try again.');
-
-      let uploadWarning = '';
-      if (files.length && storage) {
-        try {
-          setStatus('Database saved. Uploading files to Firebase Storage...', 'loading');
-          const attachments = await uploadFiles(personKey, submissionKey, files);
-          const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
-            displayName,
-            normalizedName: personKey,
-            createdAt: nowIso,
-            message,
-            attachments,
-          });
-          await withTimeout(newSubmissionRef.update({
-            attachments,
-            storageManifest: manifest,
-          }), 30000, 'Database update timed out while attaching uploaded files.');
-
-          if (isDriveSyncEnabled && attachments.length) {
-            setStatus('Files uploaded. Syncing copies to Google Drive...', 'loading');
-            await syncSubmissionToDrive({
-              personKey,
-              displayName,
-              createdAt: nowIso,
-              submissionKey,
-              attachments,
-            });
-          }
-        } catch (uploadError) {
-          uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
-        }
-      }
       await withTimeout(Promise.all([
         personRef.child('profile').set({
           displayName,
@@ -422,34 +318,28 @@ document.addEventListener('DOMContentLoaded', () => {
       ]), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
 
       let uploadWarning = '';
-      if (files.length && storage) {
-        try {
-          setStatus('Database saved. Uploading files to Firebase Storage...', 'loading');
-          const attachments = await uploadFiles(personKey, submissionKey, files);
-          const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
-            displayName,
-            normalizedName: personKey,
-            createdAt: nowIso,
-            message,
-            attachments,
-          });
-          await withTimeout(newSubmissionRef.update({
-            attachments,
-            storageManifest: manifest,
-          }), 30000, 'Database update timed out while attaching uploaded files.');
-
-          if (driveSyncConfig.enabled !== false && attachments.length) {
-            setStatus('Files uploaded. Syncing copies to Google Drive...', 'loading');
-            await syncSubmissionToDrive({
-              personKey,
+      if (files.length) {
+        if (!storage) {
+          uploadWarning = ' Entry saved, but Firebase Storage is unavailable.';
+        } else {
+          try {
+            setStatus('Entry saved. Uploading files to Firebase Storage...', 'loading');
+            const attachments = await uploadFiles(personKey, submissionKey, files);
+            const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
               displayName,
+              normalizedName: personKey,
               createdAt: nowIso,
-              submissionKey,
+              message,
               attachments,
             });
+
+            await withTimeout(newSubmissionRef.update({
+              attachments,
+              storageManifest: manifest,
+            }), 30000, 'Failed to attach uploaded file metadata to the submission.');
+          } catch (uploadError) {
+            uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
           }
-        } catch (uploadError) {
-          uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
         }
       }
 
@@ -462,7 +352,6 @@ document.addEventListener('DOMContentLoaded', () => {
       submitButton.disabled = false;
     }
   }
-
 
   function loadEntries() {
     if (!firebaseConfig || typeof firebase === 'undefined' || !firebase.apps) {
