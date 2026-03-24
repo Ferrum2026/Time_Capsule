@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.formStatus.className = `form-status ${type || ''}`.trim();
   }
 
-  async function uploadFiles(personKey, submissionKey, files) {
+  async function uploadFiles(personKey, files) {
     if (!files.length || !storage) return [];
 
     const uploads = files.map(async (file) => {
@@ -270,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function handleFormSubmit(event) {
     event.preventDefault();
 
-    if (!database || !storage) {
+    if (!database) {
       setStatus('Firebase is not ready yet. Check your Firebase config first.', 'error');
       return;
     }
@@ -290,6 +290,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       setStatus('Syncing your submission to Firebase Storage and Database...', 'loading');
 
+      let attachments = [];
+      let uploadWarning = '';
+      if (files.length) {
+        try {
+          attachments = await uploadFiles(personKey, files);
+        } catch (uploadError) {
+          uploadWarning = ' Files were not uploaded, but your message entry was still saved.';
+        }
+      }
       const nowIso = new Date().toISOString();
       const personRef = database.ref(`${firebasePath}/${personKey}`);
       const newSubmissionRef = personRef.child('submissions').push();
@@ -322,7 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       els.form.reset();
-      setStatus('Saved successfully. Your submission is now synced to both Firebase Storage and Realtime Database.', 'success');
+      setStatus(`Saved successfully. Repeat submissions using the same name will stay under the same participant category.${uploadWarning}`, 'success');
     } catch (error) {
       setStatus(error.message || 'Failed to save the entry.', 'error');
     } finally {

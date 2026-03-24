@@ -11,8 +11,6 @@ const FIREBASE_SYNC_CONFIG = {
   databaseUrl: 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app',
   storageBucket: 'batchcapsule.firebasestorage.app',
   firebasePath: 'capsuleEntries',
-  // Optional: use only if your database rules require auth param.
-  databaseSecret: '',
   nameField: 'Full name',
   messageField: 'Message to your future self'
 };
@@ -20,13 +18,12 @@ const FIREBASE_SYNC_CONFIG = {
 const STRICT_NAME_PATTERN = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
 function onFormSubmit(e) {
-  const eventPayload = (e && e.namedValues) ? e : buildEventFromLatestFormResponse();
+  if (!e || !e.namedValues) {
+    throw new Error('Missing event payload. Run this from a real Form Submit trigger.');
+  }
 
-  const name = normalizeName(readField(eventPayload.namedValues, FIREBASE_SYNC_CONFIG.nameField));
-  const message = String(readField(eventPayload.namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
-
-  Logger.log(`Resolved name field: ${FIREBASE_SYNC_CONFIG.nameField}`);
-  Logger.log(`Resolved message field: ${FIREBASE_SYNC_CONFIG.messageField}`);
+  const name = normalizeName(readField(e.namedValues, FIREBASE_SYNC_CONFIG.nameField));
+  const message = String(readField(e.namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
 
   if (!STRICT_NAME_PATTERN.test(name)) {
     throw new Error('Use UPPERCASE strict format: SURNAME_FIRST NAME_M.I');
@@ -44,7 +41,7 @@ function onFormSubmit(e) {
     message,
     attachments: [],
     source: 'google-form',
-    rawFormAnswers: eventPayload.namedValues
+    rawFormAnswers: e.namedValues
   };
 
   const manifestPath = `${FIREBASE_SYNC_CONFIG.firebasePath}/${personKey}/${submissionKey}/submission.json`;
@@ -72,79 +69,27 @@ function onFormSubmit(e) {
       url: manifestUrl
     }
   });
-
-  Logger.log(`Synced submission ${submissionKey} for ${personKey}`);
-}
-
-function buildEventFromLatestFormResponse() {
-  const form = FormApp.getActiveForm();
-  if (!form) {
-    throw new Error('No active Google Form was found. Open this script from the Form or use a real submit trigger.');
-  }
-
-  const responses = form.getResponses();
-  if (!responses.length) {
-    throw new Error('No Form responses found yet. Submit one response first, then run again.');
-  }
-
-  const latest = responses[responses.length - 1];
-  const namedValues = {};
-  latest.getItemResponses().forEach((itemResponse) => {
-    const title = itemResponse.getItem().getTitle();
-    const rawResponse = itemResponse.getResponse();
-    const value = Array.isArray(rawResponse) ? rawResponse.join(', ') : String(rawResponse || '');
-    namedValues[title] = [value];
-  });
-
-  return { namedValues };
 }
 
 function uploadJsonManifest(path, payload) {
   const token = ScriptApp.getOAuthToken();
-  const buckets = getStorageBucketCandidates();
-  let lastError = '';
-
-  for (let i = 0; i < buckets.length; i += 1) {
-    const bucket = buckets[i];
-    const url = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o?uploadType=media&name=${encodeURIComponent(path)}`;
-    const response = UrlFetchApp.fetch(url, {
-      method: 'post',
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-
-    const code = response.getResponseCode();
-    if (code >= 200 && code < 300) {
-      return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(path)}?alt=media`;
-    }
-
-    lastError = `Bucket ${bucket} failed (${code}): ${response.getContentText()}`;
-    Logger.log(lastError);
-  }
-
-  throw new Error(`Storage upload failed. ${lastError}`);
-}
-
-function getStorageBucketCandidates() {
-  const configured = String(FIREBASE_SYNC_CONFIG.storageBucket || '').trim();
-  const projectIdGuess = extractProjectIdFromDatabaseUrl(FIREBASE_SYNC_CONFIG.databaseUrl);
-  const fallback = projectIdGuess ? `${projectIdGuess}.appspot.com` : '';
-
-  const unique = {};
-  [configured, fallback].forEach((item) => {
-    if (item) unique[item] = true;
+  const url = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_SYNC_CONFIG.storageBucket)}/o?uploadType=media&name=${encodeURIComponent(path)}`;
+  const response = UrlFetchApp.fetch(url, {
+    method: 'post',
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
   });
 
-  return Object.keys(unique);
-}
+  const code = response.getResponseCode();
+  if (code < 200 || code >= 300) {
+    throw new Error(`Storage upload failed (${code}): ${response.getContentText()}`);
+  }
 
-function extractProjectIdFromDatabaseUrl(databaseUrl) {
-  const match = String(databaseUrl || '').match(/https:\/\/([a-z0-9-]+)-default-rtdb\./i);
-  return match ? match[1] : '';
+  return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_SYNC_CONFIG.storageBucket)}/o/${encodeURIComponent(path)}?alt=media`;
 }
 
 function firebasePut(path, payload) {
@@ -156,11 +101,9 @@ function firebasePatch(path, payload) {
 }
 
 function firebaseRequest(method, path, payload) {
+  const token = ScriptApp.getOAuthToken();
   const base = FIREBASE_SYNC_CONFIG.databaseUrl.replace(/\/$/, '');
-  const query = FIREBASE_SYNC_CONFIG.databaseSecret
-    ? `?auth=${encodeURIComponent(FIREBASE_SYNC_CONFIG.databaseSecret)}`
-    : '';
-  const url = `${base}/${path}.json${query}`;
+  const url = `${base}/${path}.json?access_token=${encodeURIComponent(token)}`;
   const response = UrlFetchApp.fetch(url, {
     method,
     contentType: 'application/json',
@@ -177,36 +120,11 @@ function firebaseRequest(method, path, payload) {
 }
 
 function readField(namedValues, fieldName) {
-  const direct = namedValues[fieldName];
-  if (direct && direct.length) {
-    return String(direct[0] || '').trim();
+  const value = namedValues[fieldName];
+  if (!value || !value.length) {
+    throw new Error(`Missing form field: ${fieldName}`);
   }
-
-  const normalizedTarget = normalizeFieldKey(fieldName);
-  const keys = Object.keys(namedValues || {});
-  for (let i = 0; i < keys.length; i += 1) {
-    const key = keys[i];
-    if (normalizeFieldKey(key) === normalizedTarget) {
-      const value = namedValues[key];
-      if (value && value.length) return String(value[0] || '').trim();
-    }
-  }
-
-  throw new Error(`Missing form field: ${fieldName}. Available fields: ${keys.join(', ')}`);
-}
-
-function normalizeFieldKey(value) {
-  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function testFirebaseWrite() {
-  const fakeEvent = {
-    namedValues: {
-      [FIREBASE_SYNC_CONFIG.nameField]: ['DELA CRUZ_JUAN_P.'],
-      [FIREBASE_SYNC_CONFIG.messageField]: ['Test message from Apps Script']
-    }
-  };
-  onFormSubmit(fakeEvent);
+  return String(value[0] || '').trim();
 }
 
 function normalizeName(rawValue) {
