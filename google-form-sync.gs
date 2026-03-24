@@ -1,139 +1,130 @@
 /**
- * Google Apps Script bridge: Google Form -> Firebase Realtime Database + Firebase Storage.
+ * SIMPLE Google Form -> Firebase Realtime Database sync.
  *
- * IMPORTANT:
- * - This runs in Apps Script, not in the browser.
- * - Attach this to your Google Form (Script editor) and create an installable trigger:
- *   Trigger: onFormSubmit, Event type: From form -> On form submit.
+ * WHAT YOU DO:
+ * 1) Paste this in the Form's Apps Script project.
+ * 2) Set CONFIG below.
+ * 3) Create installable trigger:
+ *    Function: onFormSubmit
+ *    Event source: From form
+ *    Event type: On form submit
+ *
+ * OPTIONAL TEST FROM EDITOR:
+ * - Run syncLatestResponse() (NOT onFormSubmit).
  */
 
-const FIREBASE_SYNC_CONFIG = {
+const CONFIG = {
   databaseUrl: 'https://batchcapsule-default-rtdb.asia-southeast1.firebasedatabase.app',
-  storageBucket: 'batchcapsule.firebasestorage.app',
   firebasePath: 'capsuleEntries',
   nameField: 'Full name',
-  messageField: 'Message to your future self'
+  messageField: 'Message to your future self',
+
+  // Optional: set if your DB rules require auth=...
+  // Leave blank to use ScriptApp OAuth token.
+  databaseSecret: ''
 };
 
-const STRICT_NAME_PATTERN = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
-
+/**
+ * Trigger entrypoint (real form submit).
+ */
 function onFormSubmit(e) {
   if (!e || !e.namedValues) {
-    throw new Error('Missing event payload. Run this from a real Form Submit trigger.');
+    throw new Error('No event payload. Do NOT run onFormSubmit manually. Use syncLatestResponse() for testing.');
   }
+  syncNamedValues(e.namedValues);
+}
 
-  const name = normalizeName(readField(e.namedValues, FIREBASE_SYNC_CONFIG.nameField));
-  const message = String(readField(e.namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
+/**
+ * Manual test helper: syncs the latest Form response.
+ */
+function syncLatestResponse() {
+  const form = FormApp.getActiveForm();
+  if (!form) throw new Error('No active Form found. Bind script to a Form.');
 
-  if (!STRICT_NAME_PATTERN.test(name)) {
-    throw new Error('Use UPPERCASE strict format: SURNAME_FIRST NAME_M.I');
-  }
-  if (!message) {
-    throw new Error('Message is required.');
-  }
+  const responses = form.getResponses();
+  if (!responses.length) throw new Error('No responses yet.');
 
-  const personKey = slugifyName(name);
-  const submissionKey = Utilities.getUuid();
-  const nowIso = new Date().toISOString();
-
-  const submissionPayload = {
-    createdAt: nowIso,
-    message,
-    attachments: [],
-    source: 'google-form',
-    rawFormAnswers: e.namedValues
-  };
-
-  const manifestPath = `${FIREBASE_SYNC_CONFIG.firebasePath}/${personKey}/${submissionKey}/submission.json`;
-  const manifestUrl = uploadJsonManifest(manifestPath, {
-    displayName: name,
-    normalizedName: personKey,
-    submissionKey,
-    ...submissionPayload
+  const latest = responses[responses.length - 1];
+  const namedValues = {};
+  latest.getItemResponses().forEach((r) => {
+    const title = String(r.getItem().getTitle() || '').trim();
+    const value = r.getResponse();
+    namedValues[title] = [Array.isArray(value) ? value.join(', ') : String(value || '').trim()];
   });
 
-  firebasePatch(`${FIREBASE_SYNC_CONFIG.firebasePath}/${personKey}`, {
-    displayName: name,
-    updatedAt: nowIso
+  syncNamedValues(namedValues);
+}
+
+/**
+ * Core sync logic:
+ * - Same normalized name => same person group
+ * - Every submit => new record under submissions
+ */
+function syncNamedValues(namedValues) {
+  const displayName = normalizeName(readField(namedValues, CONFIG.nameField));
+  const message = String(readField(namedValues, CONFIG.messageField) || '').trim();
+  if (!displayName) throw new Error(`Missing/empty field: ${CONFIG.nameField}`);
+  if (!message) throw new Error(`Missing/empty field: ${CONFIG.messageField}`);
+
+  const now = new Date().toISOString();
+  const personKey = slugify(displayName);
+  const personPath = `${CONFIG.firebasePath}/${personKey}`;
+
+  // Person/group metadata
+  firebaseRequest('patch', personPath, {
+    displayName: displayName,
+    updatedAt: now
   });
 
-  firebasePut(`${FIREBASE_SYNC_CONFIG.firebasePath}/${personKey}/profile`, {
-    displayName: name,
+  firebaseRequest('put', `${personPath}/profile`, {
+    displayName: displayName,
     normalizedName: personKey
   });
 
-  firebasePut(`${FIREBASE_SYNC_CONFIG.firebasePath}/${personKey}/submissions/${submissionKey}`, {
-    ...submissionPayload,
-    storageManifest: {
-      path: manifestPath,
-      url: manifestUrl
-    }
+  // Append one submission
+  firebaseRequest('post', `${personPath}/submissions`, {
+    createdAt: now,
+    message: message,
+    source: 'google-form',
+    rawFormAnswers: namedValues
   });
-}
-
-function uploadJsonManifest(path, payload) {
-  const token = ScriptApp.getOAuthToken();
-  const url = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_SYNC_CONFIG.storageBucket)}/o?uploadType=media&name=${encodeURIComponent(path)}`;
-  const response = UrlFetchApp.fetch(url, {
-    method: 'post',
-    headers: {
-      Authorization: `Bearer ${token}`
-    },
-    contentType: 'application/json',
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  });
-
-  const code = response.getResponseCode();
-  if (code < 200 || code >= 300) {
-    throw new Error(`Storage upload failed (${code}): ${response.getContentText()}`);
-  }
-
-  return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(FIREBASE_SYNC_CONFIG.storageBucket)}/o/${encodeURIComponent(path)}?alt=media`;
-}
-
-function firebasePut(path, payload) {
-  return firebaseRequest('put', path, payload);
-}
-
-function firebasePatch(path, payload) {
-  return firebaseRequest('patch', path, payload);
-}
-
-function firebaseRequest(method, path, payload) {
-  const token = ScriptApp.getOAuthToken();
-  const base = FIREBASE_SYNC_CONFIG.databaseUrl.replace(/\/$/, '');
-  const url = `${base}/${path}.json?access_token=${encodeURIComponent(token)}`;
-  const response = UrlFetchApp.fetch(url, {
-    method,
-    contentType: 'application/json',
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  });
-
-  const code = response.getResponseCode();
-  if (code < 200 || code >= 300) {
-    throw new Error(`Database write failed (${code}): ${response.getContentText()}`);
-  }
-
-  return JSON.parse(response.getContentText() || 'null');
 }
 
 function readField(namedValues, fieldName) {
   const value = namedValues[fieldName];
-  if (!value || !value.length) {
-    throw new Error(`Missing form field: ${fieldName}`);
-  }
+  if (!value || !value.length) return '';
   return String(value[0] || '').trim();
 }
 
-function normalizeName(rawValue) {
-  return String(rawValue || '').trim().replace(/\s+/g, ' ');
+function normalizeName(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
 }
 
-function slugifyName(name) {
-  return normalizeName(name)
+function slugify(value) {
+  return normalizeName(value)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '') || 'unnamed-participant';
+}
+
+function firebaseRequest(method, path, payload) {
+  const base = CONFIG.databaseUrl.replace(/\/$/, '');
+  const secret = String(CONFIG.databaseSecret || '').trim();
+  const authQuery = secret
+    ? `auth=${encodeURIComponent(secret)}`
+    : `access_token=${encodeURIComponent(ScriptApp.getOAuthToken())}`;
+  const url = `${base}/${path}.json?${authQuery}`;
+
+  const res = UrlFetchApp.fetch(url, {
+    method: method,
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+
+  const code = res.getResponseCode();
+  if (code < 200 || code >= 300) {
+    throw new Error(`Firebase error ${code}: ${res.getContentText()}`);
+  }
+  return JSON.parse(res.getContentText() || 'null');
 }
