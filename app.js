@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const isForcedOpen = parseBoolean(config.forceOpenVault);
   const firebasePath = config.firebasePath || 'capsuleEntries';
   const driveSyncConfig = config.driveSync || {};
-  const isDriveSyncEnabled = parseBoolean(driveSyncConfig.enabled);
   const legacyFormUrl = String(config.googleFormUrl || '').trim();
   const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
@@ -405,6 +404,54 @@ document.addEventListener('DOMContentLoaded', () => {
           uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
         }
       }
+      await withTimeout(Promise.all([
+        personRef.child('profile').set({
+          displayName,
+          normalizedName: personKey,
+        }),
+        personRef.update({
+          displayName,
+          updatedAt: nowIso,
+        }),
+        newSubmissionRef.set({
+          createdAt: nowIso,
+          message,
+          attachments: [],
+          storageManifest: null,
+        })
+      ]), 30000, 'Database write timed out. Check Firebase Realtime Database rules and try again.');
+
+      let uploadWarning = '';
+      if (files.length && storage) {
+        try {
+          setStatus('Database saved. Uploading files to Firebase Storage...', 'loading');
+          const attachments = await uploadFiles(personKey, submissionKey, files);
+          const manifest = await uploadSubmissionManifest(personKey, submissionKey, {
+            displayName,
+            normalizedName: personKey,
+            createdAt: nowIso,
+            message,
+            attachments,
+          });
+          await withTimeout(newSubmissionRef.update({
+            attachments,
+            storageManifest: manifest,
+          }), 30000, 'Database update timed out while attaching uploaded files.');
+
+          if (driveSyncConfig.enabled !== false && attachments.length) {
+            setStatus('Files uploaded. Syncing copies to Google Drive...', 'loading');
+            await syncSubmissionToDrive({
+              personKey,
+              displayName,
+              createdAt: nowIso,
+              submissionKey,
+              attachments,
+            });
+          }
+        } catch (uploadError) {
+          uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
+        }
+      }
 
       els.form.reset();
       const successMessage = 'Saved successfully. Repeat submissions using the same name will stay under the same participant category.';
@@ -415,6 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
       submitButton.disabled = false;
     }
   }
+
 
   function loadEntries() {
     if (!firebaseConfig || typeof firebase === 'undefined' || !firebase.apps) {
