@@ -1,27 +1,27 @@
 # Simple Time Capsule Template
 
-This version includes a built-in **Firebase submission form** and an optional **old Google Form fallback link**.
+This version includes a built-in **Firebase submission form** with optional **Google Drive mirroring** for uploaded files.
 
 Participants can:
 - enter their name using the required format `SURNAME_FIRST NAME_M.I`,
 - write a short message,
 - optionally upload any file type,
 - submit multiple times without creating duplicate person categories,
-- still open the old Google Form if you decide to keep it visible.
+- optionally mirror uploaded files to Google Drive after Firebase upload succeeds.
 
 The website stores:
 - every submission payload (`submission.json`) and file uploads in **Firebase Storage**,
 - submission records in **Firebase Realtime Database**,
 - repeated submissions under the same participant key,
-- no Google Drive folders at all.
+- optional mirrored copies to Google Drive via webhook if enabled.
 
 ---
 
 ## 1. Main files to edit
 
-- `firebase-config.js` — Firebase project settings, reveal date, optional old Google Form URL, and UI text.
-- `index.html` — page structure including the participant form and fallback Google Form link.
-- `app.js` — countdown, form handling, Firebase upload logic, fallback Google Form toggle, and grouped entry rendering.
+- `firebase-config.js` — Firebase project settings, reveal date, optional Google Drive mirror webhook, and UI text.
+- `index.html` — page structure including the participant form and storage-priority guidance.
+- `app.js` — countdown, form handling, Firebase upload logic, optional Google Drive mirroring, and grouped entry rendering.
 - `main.css` — page styling.
 
 ---
@@ -78,17 +78,21 @@ capsuleEntries/{person-slug}/{submissionKey}/submission.json
 
 ---
 
-## 4. Optional old Google Form link
+## 4. Optional Google Drive mirror
 
-If you still want to show the old Google Form for people who are already used to it, set this in `firebase-config.js`:
+Google Forms are currently on hold.
+
+If you want to mirror files to Google Drive after Firebase upload, configure this in `firebase-config.js`:
 
 ```js
-googleFormUrl: 'https://forms.gle/your-old-link'
+driveSync: {
+  enabled: true,
+  webhookUrl: 'https://script.google.com/macros/s/your-web-app-id/exec',
+  apiKey: ''
+}
 ```
 
-If `googleFormUrl` is blank, the fallback Google Form buttons stay hidden.
-
----
+If `driveSync.enabled` is `false`, uploads stay Firebase-only.
 
 ## 5. Firebase setup
 
@@ -117,42 +121,9 @@ Then open `index.html` through a local web server and submit a sample entry.
 
 ## 7. Notes
 
-- The main submission flow is now Firebase-only.
-- The optional Google Form link is just a fallback shortcut and does not create Google Drive folders.
+- The main submission flow is Firebase-first (no Google Forms in the current flow).
+- Optional Google Drive mirror runs only after Firebase upload succeeds.
 - File uploads are saved first, then the submission record is written.
 - The reveal area groups entries by participant name instead of showing each submission as a separate top-level category.
 
 ---
-
-
-## 8. Google Form trigger (Apps Script)
-
-If you are submitting from **Google Form** and got:
-
-```text
-ReferenceError: document is not defined
-```
-
-that means browser code (`app.js`) was pasted into Apps Script. Apps Script has no `document` object.
-
-Use `google-form-sync.gs` instead:
-
-1. Open your Google Form → **Script editor**.
-2. Paste `google-form-sync.gs` content.
-3. Update these values in `FIREBASE_SYNC_CONFIG`:
-   - `databaseUrl`
-   - `firebasePath`
-   - `databaseSecret` (optional; only if your Realtime Database rules require `auth`)
-   - `nameField` and `messageField` (must match Form question titles exactly)
-   - `fileFieldTitles` (optional; file-upload question titles, leave empty to auto-detect)
-   - `driveFolderId` (optional; attach uploaded files to this Google Drive folder)
-   - `makeFilesPublic` (set `true` to allow website previews with link access)
-4. Add an installable trigger: **onFormSubmit** → **From form** → **On form submit**.
-
-This script enforces strict uppercase format `SURNAME_FIRST NAME_M.I` and writes each submission directly to Realtime Database under `capsuleEntries/{person-slug}/submissions/{autoId}`.
-
-If your Google Form has **File upload** questions, the script now records Google Drive file metadata and links in `attachments[]` so entries from web and Google Form both appear in the same board format.
-
-Important auth note for Apps Script:
-- If your Realtime Database rules allow public writes for testing, leave `databaseSecret` blank.
-- If your rules require auth, set `databaseSecret` to a valid Realtime Database secret (legacy projects) or adjust rules to accept your write method.
