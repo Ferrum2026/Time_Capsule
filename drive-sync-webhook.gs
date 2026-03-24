@@ -11,9 +11,9 @@
 
 var DRIVE_SYNC_CONFIG = {};
 // Root folder where participant folders will be created.
-DRIVE_SYNC_CONFIG.rootFolderId = '';
+DRIVE_SYNC_CONFIG.rootFolderId = '14q0u9WSr3WvBLO9t96HPALANiEP8Uvn4SME83p3EpyM6IhtrV6nYNlRi14xX5TyCdm7ljv7a';
 // Optional shared key. If set, website must send same key in query param (?key=...).
-DRIVE_SYNC_CONFIG.apiKey = '';
+DRIVE_SYNC_CONFIG.apiKey = 'AIzaSyB9ADMsJMGKO9jvUxpDdclVAHy4RZmileQ';
 
 function doPost(e) {
   try {
