@@ -326,13 +326,19 @@ document.addEventListener('DOMContentLoaded', () => {
             await syncSubmissionToDrive({
               personKey,
               displayName,
+              normalizedName: personKey,
               createdAt: nowIso,
-              submissionKey,
+              message,
               attachments,
             });
+
+            await withTimeout(newSubmissionRef.update({
+              attachments,
+              storageManifest: manifest,
+            }), 30000, 'Failed to attach uploaded file metadata to the submission.');
+          } catch (uploadError) {
+            uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
           }
-        } catch (uploadError) {
-          uploadWarning = ` Entry text was saved, but file upload failed: ${uploadError.message || 'unknown error'}`;
         }
       }
 
