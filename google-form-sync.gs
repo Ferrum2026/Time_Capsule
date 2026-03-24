@@ -20,12 +20,13 @@ var FIREBASE_SYNC_CONFIG = {
   // Parent path in Realtime Database
   firebasePath: 'capsuleEntries',
 
-  // Optional database secret (legacy). Leave blank for public/dev rules.
+  // Optional database secret (legacy). Leave blank to use ScriptApp OAuth token.
   databaseSecret: '',
 
   // Must match Google Form question titles exactly.
   nameField: 'Full name',
-  messageField: 'Message to your future self',
+  messageField: 'Message to your future self'
+};
 
   // Optional: explicit file upload question titles.
   // If empty, script auto-detects all FILE_UPLOAD questions in the form response.
@@ -50,17 +51,15 @@ function onFormSubmit(e) {
     throw new Error('Missing event payload. Use an installable form-submit trigger.');
   }
 
-  syncFormSubmitEvent(e);
+  syncNamedValues(e.namedValues);
 }
 
 /**
  * Extract, validate, normalize, and sync one submission.
  */
-function syncFormSubmitEvent(e) {
-  var namedValues = e.namedValues || {};
-  var displayName = normalizeName(readField(namedValues, FIREBASE_SYNC_CONFIG.nameField));
-  var message = String(readField(namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
-  var attachments = extractDriveAttachments(e);
+function syncNamedValues(namedValues) {
+  const displayName = normalizeName(readField(namedValues, FIREBASE_SYNC_CONFIG.nameField));
+  const message = String(readField(namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
 
   if (!STRICT_NAME_PATTERN.test(displayName)) {
     throw new Error('Invalid name format. Use: SURNAME_FIRST NAME_M.I');
@@ -85,117 +84,20 @@ function syncFormSubmitEvent(e) {
   });
 
   // Save one submission directly into Realtime Database.
-  var submissionPayload = {
+  const submissionPayload = {
     createdAt: nowIso,
     message: message,
     source: 'google-form',
-    attachments: attachments,
+    attachments: [],
     storageManifest: null,
     rawFormAnswers: namedValues
   };
 
-  firebasePost(personPath + '/submissions', submissionPayload);
-}
-
-function extractDriveAttachments(e) {
-  if (!e || !e.response || typeof e.response.getItemResponses !== 'function') {
-    return [];
-  }
-
-  var configuredTitles = (FIREBASE_SYNC_CONFIG.fileFieldTitles || [])
-    .map(function(title) { return String(title || '').trim(); })
-    .filter(function(title) { return Boolean(title); });
-
-  var itemResponses = e.response.getItemResponses();
-  var attachments = [];
-
-  itemResponses.forEach(function(itemResponse) {
-    var item = itemResponse.getItem();
-    var title = String(item.getTitle() || '').trim();
-    var itemType = item.getType && item.getType();
-
-    var allowByTitle = configuredTitles.length === 0 || configuredTitles.indexOf(title) !== -1;
-    var isFileUpload = itemType === FormApp.ItemType.FILE_UPLOAD;
-    if (!allowByTitle || !isFileUpload) return;
-
-    var responseValue = itemResponse.getResponse();
-    var fileIds = Array.isArray(responseValue)
-      ? responseValue
-      : (responseValue ? [responseValue] : []);
-
-    fileIds.forEach(function(fileId) {
-      var attachment = mapDriveFileAttachment(fileId);
-      if (attachment) {
-        attachments.push(attachment);
-      }
-    });
-  });
-
-  return attachments;
-}
-
-function mapDriveFileAttachment(fileId) {
-  var cleanId = String(fileId || '').trim();
-  if (!cleanId) return null;
-
-  try {
-    var file = DriveApp.getFileById(cleanId);
-    attachFileToConfiguredFolder(file);
-    maybeMakeFilePublic(file);
-    var mime = file.getMimeType() || 'application/octet-stream';
-    var encodedId = encodeURIComponent(cleanId);
-    var previewUrl = buildPreviewUrl(cleanId, mime);
-
-    return {
-      id: cleanId,
-      name: file.getName() || ('drive-file-' + cleanId),
-      type: mime,
-      size: Number(file.getSize() || 0),
-      source: 'google-drive',
-      url: 'https://drive.google.com/file/d/' + encodedId + '/view?usp=drivesdk',
-      downloadUrl: 'https://drive.google.com/uc?export=download&id=' + encodedId,
-      previewUrl: previewUrl
-    };
-  } catch (error) {
-    // Keep sync resilient when one file becomes inaccessible/deleted.
-    return {
-      id: cleanId,
-      name: 'drive-file-' + cleanId,
-      type: 'application/octet-stream',
-      size: 0,
-      source: 'google-drive',
-      url: 'https://drive.google.com/file/d/' + encodeURIComponent(cleanId) + '/view?usp=drivesdk',
-      error: String(error && error.message ? error.message : error)
-    };
-  }
-}
-
-function attachFileToConfiguredFolder(file) {
-  var folderId = String(FIREBASE_SYNC_CONFIG.driveFolderId || '').trim();
-  if (!folderId) return;
-
-  var folder = DriveApp.getFolderById(folderId);
-  folder.addFile(file);
-}
-
-function maybeMakeFilePublic(file) {
-  if (!FIREBASE_SYNC_CONFIG.makeFilesPublic) return;
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-}
-
-function buildPreviewUrl(fileId, mimeType) {
-  var encodedId = encodeURIComponent(fileId);
-  if (String(mimeType || '').indexOf('image/') === 0) {
-    return 'https://drive.google.com/thumbnail?id=' + encodedId + '&sz=w1600';
-  }
-  if (String(mimeType || '').indexOf('video/') === 0 || String(mimeType || '').indexOf('audio/') === 0) {
-    return 'https://drive.google.com/uc?export=download&id=' + encodedId;
-  }
-  return 'https://drive.google.com/file/d/' + encodedId + '/preview';
+  firebasePost(`${personPath}/submissions`, submissionPayload);
 }
 
 function readField(namedValues, fieldName) {
-  var value = namedValues[fieldName] || namedValues[String(fieldName || '').trim()];
+  const value = namedValues[fieldName] || namedValues[String(fieldName || '').trim()];
   if (!value || !value.length) {
     throw new Error('Missing form field: ' + fieldName);
   }
@@ -226,16 +128,18 @@ function firebasePost(path, payload) {
 }
 
 function firebaseRequest(method, path, payload) {
-  var base = FIREBASE_SYNC_CONFIG.databaseUrl.replace(/\/$/, '');
-  var secret = String(FIREBASE_SYNC_CONFIG.databaseSecret || '').trim();
-  var url = secret
-    ? base + '/' + path + '.json?auth=' + encodeURIComponent(secret)
-    : base + '/' + path + '.json';
+  const base = FIREBASE_SYNC_CONFIG.databaseUrl.replace(/\/$/, '');
+  const secret = String(FIREBASE_SYNC_CONFIG.databaseSecret || '').trim();
+  const authQuery = secret
+    ? `auth=${encodeURIComponent(secret)}`
+    : `access_token=${encodeURIComponent(ScriptApp.getOAuthToken())}`;
 
-  var response = UrlFetchApp.fetch(url, {
-    method: method,
+  const url = `${base}/${path}.json?${authQuery}`;
+  const response = UrlFetchApp.fetch(url, {
+    method,
     contentType: 'application/json',
     payload: JSON.stringify(payload),
+    headers,
     muteHttpExceptions: true
   });
 
