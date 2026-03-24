@@ -25,7 +25,8 @@ const FIREBASE_SYNC_CONFIG = {
 
   // Must match Google Form question titles exactly.
   nameField: 'Full name',
-  messageField: 'Message to your future self',
+  messageField: 'Message to your future self'
+};
 
   // Optional: explicit file upload question titles.
   // If empty, script auto-detects all FILE_UPLOAD questions in the form response.
@@ -43,17 +44,15 @@ function onFormSubmit(e) {
     throw new Error('Missing event payload. Use an installable form-submit trigger.');
   }
 
-  syncFormSubmitEvent(e);
+  syncNamedValues(e.namedValues);
 }
 
 /**
  * Extract, validate, normalize, and sync one submission.
  */
-function syncFormSubmitEvent(e) {
-  const namedValues = e.namedValues || {};
+function syncNamedValues(namedValues) {
   const displayName = normalizeName(readField(namedValues, FIREBASE_SYNC_CONFIG.nameField));
   const message = String(readField(namedValues, FIREBASE_SYNC_CONFIG.messageField) || '').trim();
-  const attachments = extractDriveAttachments(e);
 
   if (!STRICT_NAME_PATTERN.test(displayName)) {
     throw new Error('Invalid name format. Use: SURNAME_FIRST NAME_M.I');
@@ -82,7 +81,7 @@ function syncFormSubmitEvent(e) {
     createdAt: nowIso,
     message,
     source: 'google-form',
-    attachments,
+    attachments: [],
     storageManifest: null,
     rawFormAnswers: namedValues
   };
@@ -191,12 +190,11 @@ function firebasePost(path, payload) {
 function firebaseRequest(method, path, payload) {
   const base = FIREBASE_SYNC_CONFIG.databaseUrl.replace(/\/$/, '');
   const secret = String(FIREBASE_SYNC_CONFIG.databaseSecret || '').trim();
-  const url = secret
-    ? `${base}/${path}.json?auth=${encodeURIComponent(secret)}`
-    : `${base}/${path}.json`;
+  const authQuery = secret
+    ? `auth=${encodeURIComponent(secret)}`
+    : `access_token=${encodeURIComponent(ScriptApp.getOAuthToken())}`;
 
-  const headers = {};
-
+  const url = `${base}/${path}.json?${authQuery}`;
   const response = UrlFetchApp.fetch(url, {
     method,
     contentType: 'application/json',
