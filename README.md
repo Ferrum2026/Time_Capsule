@@ -1,27 +1,26 @@
 # Simple Time Capsule Template
 
-This version includes a built-in **Firebase submission form** and an optional **old Google Form fallback link**.
+This version includes a built-in **Firebase submission form** that stores messages in **Firebase Realtime Database** and files in **Firebase Storage**.
 
 Participants can:
 - enter their name using the required format `SURNAME_FIRST NAME_M.I`,
 - write a short message,
 - optionally upload any file type,
 - submit multiple times without creating duplicate person categories,
-- still open the old Google Form if you decide to keep it visible.
+- upload files that are stored in Firebase Storage and linked in each DB submission.
 
 The website stores:
-- every submission payload (`submission.json`) and file uploads in **Firebase Storage**,
-- submission records in **Firebase Realtime Database**,
-- repeated submissions under the same participant key,
-- no Google Drive folders at all.
+- participant profile and submission records in **Firebase Realtime Database**,
+- uploaded files in **Firebase Storage**,
+- repeated submissions under the same participant key.
 
 ---
 
 ## 1. Main files to edit
 
-- `firebase-config.js` — Firebase project settings, reveal date, optional old Google Form URL, and UI text.
-- `index.html` — page structure including the participant form and fallback Google Form link.
-- `app.js` — countdown, form handling, Firebase upload logic, fallback Google Form toggle, and grouped entry rendering.
+- `firebase-config.js` — Firebase project settings, reveal date, and UI text.
+- `index.html` — page structure including the participant form and storage-priority guidance.
+- `app.js` — countdown, form handling, Firebase upload flow (Storage + Realtime Database), and grouped entry rendering.
 - `main.css` — page styling.
 
 ---
@@ -61,8 +60,8 @@ Each person node stores:
 Each submission stores:
 - `createdAt`
 - `message`
-- `attachments[]`
-- `storageManifest` (path + URL of the JSON snapshot in Storage)
+- `attachments[]` containing `{ name, type, size, path, url }`
+- `storageManifest` containing `{ path, url }`
 
 Firebase Storage stores files under:
 
@@ -70,31 +69,22 @@ Firebase Storage stores files under:
 capsuleEntries/{person-slug}/{submissionKey}/files/{timestamp-fileName}
 ```
 
-Each submission also writes a JSON snapshot to:
+## 4. Data model
 
-```text
-capsuleEntries/{person-slug}/{submissionKey}/submission.json
-```
+Google Forms are currently on hold.
 
----
+Each submission is written under `capsuleEntries/{person-slug}/submissions/{autoId}` with:
 
-## 4. Optional old Google Form link
-
-If you still want to show the old Google Form for people who are already used to it, set this in `firebase-config.js`:
-
-```js
-googleFormUrl: 'https://forms.gle/your-old-link'
-```
-
-If `googleFormUrl` is blank, the fallback Google Form buttons stay hidden.
-
----
+- `createdAt`
+- `message`
+- `attachments[]` containing `{ name, type, size, path, url }`
 
 ## 5. Firebase setup
 
 Enable these Firebase products:
+- **Authentication** (Anonymous sign-in)
 - **Realtime Database**
-- **Storage**
+- **Firebase Storage**
 
 Then place your Firebase web config inside `firebase-config.js`.
 
@@ -117,42 +107,24 @@ Then open `index.html` through a local web server and submit a sample entry.
 
 ## 7. Notes
 
-- The main submission flow is now Firebase-only.
-- The optional Google Form link is just a fallback shortcut and does not create Google Drive folders.
-- File uploads are saved first, then the submission record is written.
+- The main submission flow uses Firebase Realtime Database + Firebase Storage (no Google Forms in the current flow).
+- Set `forceOpenVault: false` to use the countdown lock; set `true` only for testing the open state.
 - The reveal area groups entries by participant name instead of showing each submission as a separate top-level category.
 
 ---
 
+## 8. Secure the reveal (important)
 
-## 8. Google Form trigger (Apps Script)
+UI locks can be bypassed with browser dev tools, so you must secure data at Firebase rules level.
 
-If you are submitting from **Google Form** and got:
+- Keep `requireAuth: true` in `firebase-config.js`.
+- Enable Anonymous Auth in Firebase Console.
+- Publish strict Realtime Database rules (see `database.rules.json`).
+- Set `settings/revealAt` in Realtime Database as a Unix timestamp in milliseconds (example: `1798761599000` for December 31, 2026 23:59:59 UTC).
 
-```text
-ReferenceError: document is not defined
+Example deployment command:
+
+```bash
+firebase deploy --only database
 ```
 
-that means browser code (`app.js`) was pasted into Apps Script. Apps Script has no `document` object.
-
-Use `google-form-sync.gs` instead:
-
-1. Open your Google Form → **Script editor**.
-2. Paste `google-form-sync.gs` content.
-3. Update these values in `FIREBASE_SYNC_CONFIG`:
-   - `databaseUrl`
-   - `firebasePath`
-   - `databaseSecret` (optional; only if your Realtime Database rules require `auth`)
-   - `nameField` and `messageField` (must match Form question titles exactly)
-   - `fileFieldTitles` (optional; file-upload question titles, leave empty to auto-detect)
-   - `driveFolderId` (optional; attach uploaded files to this Google Drive folder)
-   - `makeFilesPublic` (set `true` to allow website previews with link access)
-4. Add an installable trigger: **onFormSubmit** → **From form** → **On form submit**.
-
-This script enforces strict uppercase format `SURNAME_FIRST NAME_M.I` and writes each submission directly to Realtime Database under `capsuleEntries/{person-slug}/submissions/{autoId}`.
-
-If your Google Form has **File upload** questions, the script now records Google Drive file metadata and links in `attachments[]` so entries from web and Google Form both appear in the same board format.
-
-Important auth note for Apps Script:
-- If your Realtime Database rules allow public writes for testing, leave `databaseSecret` blank.
-- If your rules require auth, set `databaseSecret` to a valid Realtime Database secret (legacy projects) or adjust rules to accept your write method.
