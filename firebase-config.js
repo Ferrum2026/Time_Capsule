@@ -20,7 +20,7 @@ const appConfig = {
   // 1) TIMER: change this date/time to control vault opening.
   // Example: '2027-12-31T23:59:59'
   // 👇 EDIT THIS LINE
-  revealIso: '2028-04-26T19:29:59',
+  revealIso: '2027-12-31T23:59:59',
 
   // 2) FORCE OPEN: set true to open vault immediately for testing.
   // 👇 EDIT THIS LINE
@@ -43,13 +43,15 @@ const appConfig = {
     siteTitle: 'Your Batch Time Capsule',
     siteTagline: 'Among-Us X Minecraft themed vault with countdown and submissions.',
     vaultTitle: 'The Main Vault',
-    vaultDescription: 'This vault opens when the countdown reaches zero.',
+    vaultDescription: 'This vault opens when the countdown reaches zero. Once open, the submitted files and messages grouped by participant appear below.',
+    slogan: 'Ngano naay gubot basta kami na mo graduate?',
+    quote: '“The best thing about memories is opening them again later.”',
 
     // Replace these with your own files.
     // You can create a new folder in this project like media/ and drop your files there.
     logoPath: 'media/BATCH FERRUM LOGO.png',
-    dayOneImagePath: 'assets/batch-banner-2026.svg',
-    lastDayImagePath: 'assets/batch-banner-2026.svg',
+    heroImagePath: '',
+    throwbackImagePath: '',
     filmVideoPath: '',
     behindScenesVideoPath: ''
   }

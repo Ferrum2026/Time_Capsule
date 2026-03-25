@@ -110,10 +110,10 @@ document.addEventListener('DOMContentLoaded', () => {
         window.clearTimeout(countdownTimer);
         countdownTimer = null;
       }
-      setText(els.days, '99');
-      setText(els.hours, '99');
-      setText(els.minutes, '99');
-      setText(els.seconds, '99');
+      els.days.textContent = '00';
+      els.hours.textContent = '00';
+      els.minutes.textContent = '00';
+      els.seconds.textContent = '00';
     } else {
       els.vaultState.textContent = 'Vault is locked';
       els.vaultState.className = 'vault-state locked';
