@@ -24,7 +24,7 @@ const appConfig = {
 
   // 2) FORCE OPEN: set true to open vault immediately for testing.
   // 👇 EDIT THIS LINE
-  forceOpenVault: false,
+  forceOpenVault: true,
   // =========================================================
 
   // 3) Firebase path where the website stores entries.
@@ -44,7 +44,7 @@ const appConfig = {
     siteTagline: 'A locked digital vault for messages, uploads, and memories.',
     vaultTitle: 'The Main Vault',
     vaultDescription: 'This vault opens when the countdown reaches zero. Once open, the submitted files and messages grouped by participant appear below.',
-    slogan: 'Cute nga batch.',
+    slogan: 'Ngano naay gubot basta kami na mo graduate?',
     quote: '“The best thing about memories is opening them again later.”',
 
     // Replace these with your own files.
