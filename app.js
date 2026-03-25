@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const firebaseConfig = window.__FIREBASE_CONFIG || null;
   const config = window.__APP_CONFIG || {};
+  const ui = config.ui || {};
 
   const revealDate = new Date(config.revealIso || Date.now());
   const isForcedOpen = parseBoolean(config.forceOpenVault);
@@ -10,19 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const els = {
     title: document.getElementById('site-title'),
     tagline: document.getElementById('site-tagline'),
-    slogan: document.getElementById('slogan-text'),
-    quote: document.getElementById('quote-text'),
     vaultTitle: document.getElementById('vault-title'),
     vaultDescription: document.getElementById('vault-description'),
     vaultState: document.getElementById('vault-state'),
     revealDateLabel: document.getElementById('reveal-date-label'),
-    entriesHelp: document.getElementById('entries-help'),
-    entriesGrid: document.getElementById('entries-grid'),
-    lockedOverlay: document.getElementById('locked-overlay'),
     filmVideo: document.getElementById('film-video'),
     btsVideo: document.getElementById('bts-video'),
-    heroImage: document.getElementById('hero-image'),
-    throwbackImage: document.getElementById('throwback-image'),
+    day1Image: document.getElementById('day1-image'),
+    lastdayImage: document.getElementById('lastday-image'),
     formLinkTop: document.getElementById('form-link-top'),
     siteLogo: document.getElementById('site-logo'),
     days: document.getElementById('cd-days'),
@@ -34,35 +30,32 @@ document.addEventListener('DOMContentLoaded', () => {
     messageInput: document.getElementById('message-input'),
     filesInput: document.getElementById('files-input'),
     formStatus: document.getElementById('form-status'),
-    forceOpenHint: document.getElementById('force-open-hint'),
   };
 
-  const ui = config.ui || {};
-  els.title.textContent = ui.siteTitle || 'Simple Time Capsule Vault';
-  els.tagline.textContent = ui.siteTagline || 'A clean vault website with a locked reveal and a Pinterest-style board.';
-  els.slogan.textContent = ui.slogan || 'Your slogan goes here.';
-  els.quote.textContent = ui.quote || '“Your quote goes here.”';
-  els.vaultTitle.textContent = ui.vaultTitle || 'Batch Time Capsule Vault';
-  els.vaultDescription.textContent = ui.vaultDescription || 'This is the main locked vault. After the reveal date, submitted files and messages will appear below.';
-  els.siteLogo.src = ui.logoPath || 'assets/batch-logo-2026.svg';
-  els.heroImage.src = ui.heroImagePath || 'assets/batch-banner-2026.svg';
-  els.throwbackImage.src = ui.throwbackImagePath || 'assets/batch-banner-2026.svg';
+  setText(els.title, ui.siteTitle || 'Simple Time Capsule Vault');
+  setText(els.tagline, ui.siteTagline || 'A themed vault website with timer and submission form.');
+  setText(els.vaultTitle, ui.vaultTitle || 'Batch Time Capsule Vault');
+  setText(els.vaultDescription, ui.vaultDescription || 'This vault opens when the countdown reaches zero.');
+  setSrc(els.siteLogo, ui.logoPath || 'assets/batch-logo-2026.svg');
+  setSrc(els.day1Image, ui.dayOneImagePath || ui.heroImagePath || 'assets/batch-banner-2026.svg');
+  setSrc(els.lastdayImage, ui.lastDayImagePath || ui.throwbackImagePath || 'assets/batch-banner-2026.svg');
   setVideoSource(els.filmVideo, ui.filmVideoPath);
   setVideoSource(els.btsVideo, ui.behindScenesVideoPath);
 
-  if (els.formLinkTop) {
-    els.formLinkTop.href = '#submission-form';
-  }
-
-  els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
-  if (els.forceOpenHint) {
-    const state = isForcedOpen ? 'ENABLED' : 'DISABLED';
-    els.forceOpenHint.textContent = `forceOpenVault is currently ${state} in firebase-config.js`;
-    els.forceOpenHint.classList.toggle('is-enabled', isForcedOpen);
-  }
+  if (els.formLinkTop) els.formLinkTop.href = '#submission-form';
+  if (els.revealDateLabel) els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
 
   let database = null;
   let countdownTimer = null;
+  let transitionTimer = null;
+
+  function setText(el, value) {
+    if (el) el.textContent = value;
+  }
+
+  function setSrc(el, value) {
+    if (el && value) el.src = value;
+  }
 
   function setVideoSource(video, path) {
     if (!video || !path) return;
@@ -79,8 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function parseBoolean(value) {
     if (typeof value === 'boolean') return value;
     if (typeof value === 'number') return value === 1;
-    const normalized = String(value || '').trim().toLowerCase();
-    return ['true', '1', 'yes', 'on'].includes(normalized);
+    return ['true', '1', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
   }
 
   function isOpen() {
@@ -96,43 +88,46 @@ document.addEventListener('DOMContentLoaded', () => {
     const minutes = Math.floor((safeDistance / (1000 * 60)) % 60);
     const seconds = Math.floor((safeDistance / 1000) % 60);
 
-    els.days.textContent = String(days).padStart(2, '0');
-    els.hours.textContent = String(hours).padStart(2, '0');
-    els.minutes.textContent = String(minutes).padStart(2, '0');
-    els.seconds.textContent = String(seconds).padStart(2, '0');
+    setText(els.days, String(days).padStart(2, '0'));
+    setText(els.hours, String(hours).padStart(2, '0'));
+    setText(els.minutes, String(minutes).padStart(2, '0'));
+    setText(els.seconds, String(seconds).padStart(2, '0'));
 
     applyVaultState();
 
     if (!isOpen()) {
-      const remainder = now % 1000;
-      const waitMs = remainder === 0 ? 1000 : 1000 - remainder;
+      const waitMs = 1000 - (now % 1000 || 1000);
       countdownTimer = window.setTimeout(updateCountdown, waitMs);
     }
   }
 
   function applyVaultState() {
+    if (!els.vaultState) return;
     if (isOpen()) {
       els.vaultState.textContent = isForcedOpen ? 'Vault is open (forced)' : 'Vault is open';
       els.vaultState.className = 'vault-state open';
-      els.entriesHelp.textContent = isForcedOpen
-        ? 'Manual override is ON. The vault is open immediately regardless of the reveal timer.'
-        : 'The reveal date has passed. Submitted memories are now visible below.';
-      els.lockedOverlay.classList.add('hidden');
-
       if (countdownTimer) {
         window.clearTimeout(countdownTimer);
         countdownTimer = null;
       }
-      els.days.textContent = '99';
-      els.hours.textContent = '99';
-      els.minutes.textContent = '99';
-      els.seconds.textContent = '99';
+      setText(els.days, '99');
+      setText(els.hours, '99');
+      setText(els.minutes, '99');
+      setText(els.seconds, '99');
     } else {
       els.vaultState.textContent = 'Vault is locked';
       els.vaultState.className = 'vault-state locked';
-      els.entriesHelp.textContent = 'Locked right now. Visitors can only open this after the reveal date.';
-      els.lockedOverlay.classList.remove('hidden');
     }
+  }
+
+  function startImageTransition() {
+    if (!els.day1Image || !els.lastdayImage) return;
+    let showDay1 = false;
+    transitionTimer = window.setInterval(() => {
+      showDay1 = !showDay1;
+      els.day1Image.classList.toggle('is-visible', showDay1);
+      els.lastdayImage.classList.toggle('is-visible', !showDay1);
+    }, 3200);
   }
 
   function normalizeName(rawValue) {
@@ -140,10 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function slugifyName(name) {
-    return normalizeName(name)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '') || 'unnamed-participant';
+    return normalizeName(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'unnamed-participant';
   }
 
   function validateName(name) {
@@ -154,97 +146,27 @@ document.addEventListener('DOMContentLoaded', () => {
     return normalized;
   }
 
-  function normalizeFirebaseData(raw) {
-    if (!raw || typeof raw !== 'object') return [];
-
-    return Object.entries(raw).map(([personKey, personNode]) => {
-      const submissions = personNode && personNode.submissions && typeof personNode.submissions === 'object'
-        ? Object.values(personNode.submissions)
-        : [];
-
-      submissions.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-
-      return {
-        key: personKey,
-        displayName: personNode.displayName || 'Unnamed submitter',
-        submissionCount: submissions.length,
-        updatedAt: personNode.updatedAt || '',
-        submissions,
-      };
-    }).sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }
-
-  function renderEntries(people) {
-    if (!people.length) {
-      els.entriesGrid.innerHTML = '<article class="entry-card"><h3>No memories yet</h3><p class="entry-meta">When submissions start arriving, each participant will appear here once, with every repeat entry nested underneath.</p></article>';
-      return;
-    }
-
-    els.entriesGrid.innerHTML = people.map((person) => `
-      <article class="entry-card person-card">
-        <div class="person-card-header">
-          <div>
-            <h3>${escapeHtml(person.displayName)}</h3>
-            <p class="entry-meta">${person.submissionCount} submission${person.submissionCount === 1 ? '' : 's'}${person.updatedAt ? ` • Last updated ${escapeHtml(formatDate(new Date(person.updatedAt)))}` : ''}</p>
-          </div>
-        </div>
-        <div class="submission-list">
-          ${person.submissions.map((entry) => `
-            <section class="submission-item">
-              <p class="entry-meta">${escapeHtml(formatDate(new Date(entry.createdAt || Date.now())))}</p>
-              <p class="entry-message">${escapeHtml(entry.message || 'No text message for this entry.')}</p>
-              ${(entry.attachments || []).length ? `<div class="entry-attachments">${entry.attachments.map((item) => renderAttachment(item)).join('')}</div>` : '<p class="entry-meta">No files uploaded for this submission.</p>'}
-            </section>
-          `).join('')}
-        </div>
-      </article>
-    `).join('');
-  }
-
-  function renderAttachment(item) {
-    const mediaUrl = item?.dataUrl || item?.downloadUrl || item?.url || '';
-    const type = String(item?.type || '').toLowerCase();
-    const name = item?.name || 'Open file';
-    if (!mediaUrl) return '';
-
-    if (type.startsWith('image/')) {
-      return `<a class="entry-link" href="${escapeAttribute(mediaUrl)}" target="_blank" rel="noreferrer"><img src="${escapeAttribute(mediaUrl)}" alt="${escapeAttribute(name)}"></a>`;
-    }
-    if (type.startsWith('video/')) {
-      return `<video controls src="${escapeAttribute(mediaUrl)}"></video>`;
-    }
-    if (type.startsWith('audio/')) {
-      return `<audio controls src="${escapeAttribute(mediaUrl)}"></audio>`;
-    }
-    return `<a class="entry-link" href="${escapeAttribute(mediaUrl)}" target="_blank" rel="noreferrer" download="${escapeAttribute(name)}">${escapeHtml(name)}</a>`;
-  }
-
-  function escapeHtml(value) {
-    return String(value)
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
-  }
-
-  function escapeAttribute(value) {
-    return escapeHtml(value);
-  }
-
   function setStatus(message, type) {
+    if (!els.formStatus) return;
     els.formStatus.textContent = message;
     els.formStatus.className = `form-status ${type || ''}`.trim();
   }
 
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result || '');
+      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function handleFormSubmit(event) {
     event.preventDefault();
-
     if (!database) {
       setStatus('Firebase is not ready yet. Check your Firebase config first.', 'error');
       return;
     }
-
     const submitButton = els.form.querySelector('button[type="submit"]');
 
     try {
@@ -253,10 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const personKey = slugifyName(displayName);
       const message = String(els.messageInput.value || '').trim();
       const files = Array.from(els.filesInput.files || []);
-
-      if (!message) {
-        throw new Error('Please enter a short message before saving.');
-      }
+      if (!message) throw new Error('Please enter a short message before saving.');
 
       setStatus('Preparing files and saving everything to Firebase Realtime Database...', 'loading');
 
@@ -275,19 +194,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const newSubmissionRef = personRef.child('submissions').push();
 
       await Promise.all([
-        personRef.child('profile').set({
-          displayName,
-          normalizedName: personKey,
-        }),
-        personRef.update({
-          displayName,
-          updatedAt: nowIso,
-        }),
-        newSubmissionRef.set({
-          createdAt: nowIso,
-          message,
-          attachments,
-        })
+        personRef.child('profile').set({ displayName, normalizedName: personKey }),
+        personRef.update({ displayName, updatedAt: nowIso }),
+        newSubmissionRef.set({ createdAt: nowIso, message, attachments })
       ]);
 
       els.form.reset();
@@ -299,51 +208,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function readFileAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result || '');
-      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
-      reader.readAsDataURL(file);
-    });
-  }
-
   function initializeFirebase() {
     if (!firebaseConfig || typeof firebase === 'undefined' || !firebase.apps) {
       throw new Error('Firebase config is missing. Add your project details in firebase-config.js.');
     }
-
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-    }
-  }
-
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     database = firebase.database();
   }
 
-  function subscribeToEntries() {
-    database.ref(firebasePath).on('value', (snapshot) => {
-      const entries = normalizeFirebaseData(snapshot.val());
-      renderEntries(entries);
-    }, (error) => {
-      renderEntries([]);
-      if (error && error.code === 'PERMISSION_DENIED') {
-        els.entriesHelp.textContent = 'Entries are secured by Firebase rules and are unavailable before reveal/admin access.';
-      }
-    });
-  }
-
-  function startApp() {
-    try {
-      initializeFirebase();
-      subscribeToEntries();
-    } catch (error) {
-      renderEntries([]);
-      setStatus(error.message || 'Firebase initialization failed.', 'error');
-    }
+  try {
+    initializeFirebase();
+  } catch (error) {
+    setStatus(error.message || 'Firebase initialization failed.', 'error');
   }
 
   updateCountdown();
-  startApp();
-  els.form.addEventListener('submit', handleFormSubmit);
+  startImageTransition();
+  if (els.form) els.form.addEventListener('submit', handleFormSubmit);
+
+  window.addEventListener('beforeunload', () => {
+    if (countdownTimer) window.clearTimeout(countdownTimer);
+    if (transitionTimer) window.clearInterval(transitionTimer);
+  });
 });

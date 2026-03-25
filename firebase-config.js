@@ -14,12 +14,18 @@ const firebaseConfig = {
 };
 
 const appConfig = {
-  // 1) EASIEST TIMER TO CHANGE.
+  // =========================================================
+  // 🔧 QUICK SETTINGS (MOST IMPORTANT)
+  // =========================================================
+  // 1) TIMER: change this date/time to control vault opening.
   // Example: '2027-12-31T23:59:59'
-  revealIso: '2028-04-26T19:029:59',
+  // 👇 EDIT THIS LINE
+  revealIso: '2028-04-26T19:29:59',
 
-  // 2) Set to true if you want to TEST the open vault immediately.
+  // 2) FORCE OPEN: set true to open vault immediately for testing.
+  // 👇 EDIT THIS LINE
   forceOpenVault: false,
+  // =========================================================
 
   // 3) Firebase path where the website stores entries.
   firebasePath: 'capsuleEntries',
@@ -35,17 +41,15 @@ const appConfig = {
   // 4) ALL THE WORDS AND FILES YOU WILL MOST LIKELY CHANGE.
   ui: {
     siteTitle: 'Your Batch Time Capsule',
-    siteTagline: 'A locked digital vault for messages, uploads, and memories.',
+    siteTagline: 'Among-Us X Minecraft themed vault with countdown and submissions.',
     vaultTitle: 'The Main Vault',
-    vaultDescription: 'This vault opens when the countdown reaches zero. Once open, the submitted files and messages grouped by participant appear below.',
-    slogan: 'Cute nga batch.',
-    quote: '“The best thing about memories is opening them again later.”',
+    vaultDescription: 'This vault opens when the countdown reaches zero.',
 
     // Replace these with your own files.
     // You can create a new folder in this project like media/ and drop your files there.
     logoPath: 'media/BATCH FERRUM LOGO.png',
-    heroImagePath: 'assets/batch-banner-2026.svg',
-    throwbackImagePath: 'assets/batch-banner-2026.svg',
+    dayOneImagePath: 'assets/batch-banner-2026.svg',
+    lastDayImagePath: 'assets/batch-banner-2026.svg',
     filmVideoPath: '',
     behindScenesVideoPath: ''
   }
