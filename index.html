@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Batch Ferrum Time Capsule!</title>
+  <link rel="stylesheet" href="main.css" />
+  <meta name="theme-color" content="#121212" />
+</head>
+<body>
+  <div class="star-field"></div>
+  <header class="site-header">
+    <div class="brand-wrap">
+      <img id="site-logo" class="site-logo" src="assets/batch-logo-2026.svg" alt="Time Capsule logo" />
+      <div>
+        <!-- <p class="eyebrow">EASY EDIT ZONE</p> -->
+        <h1 id="site-title">Batch Ferrum Time Capsule</h1>
+        <!-- <p id="site-tagline" class="site-tagline">A clean vault website with a locked reveal and a Pinterest-style board.</p> -->
+      </div>
+    </div>
+    <div class="header-actions">
+      <a id="form-link-top" class="button primary" href="#submission-form">Submit your memories here!</a>
+      
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section class="hero-card">
+      <div class="hero-copy-wrap">
+        <h2 class="hero-title">Countdown</h2>
+        <!-- <p class="hero-copy">Set the reveal date, collect everyone’s uploads, and let the vault unlock when the countdown reaches zero.</p> -->
+        <div class="countdown" id="countdown">
+          <div><span id="cd-days">00</span><small>Days</small></div>
+          <div><span id="cd-hours">00</span><small>Hours</small></div>
+          <div><span id="cd-minutes">00</span><small>Minutes</small></div>
+          <div><span id="cd-seconds">00</span><small>Seconds</small></div>
+        </div>
+        <p id="reveal-date-label" class="reveal-date-label"></p>
+      </div>
+      <div class="vault-card pulse">
+        <h3 id="vault-title">Batch Ferrum Time Capsule</h3>
+        <p id="vault-description">This vault opens when the countdown reaches zero.</p>
+        <div id="vault-state" class="vault-state locked"> <i> Vault is still locked </i></div>
+      </div>
+    </section>
+
+    <section class="focus-grid">
+      <article class="pin-card media-card">
+        <!-- <span class="pin-label">Video 1</span> -->
+        <h3 class="section-title">• Batch Film •</h3>
+        <video id="film-video" class="media-frame" src="assets/film.mp4" controls autoplay muted loop playsinline></video>
+      </article>
+
+      <!--<article class="pin-card media-card">
+        <span class="pin-label">Video 2</span>
+        <h3>Behind The Scenes</h3>
+        <video id="bts-video" class="media-frame" controls autoplay muted loop playsinline></video>
+      </article>-->
+
+      <article class="pin-card media-card transition-card">
+        <!-- <span class="pin-label">Photo Transition</span> -->
+        <h3 class="section-title">• Our Memories •</h3>
+        <div class="transition-frame">
+          <img id="day1-image" class="media-frame transition-image is-visible" src="assets/batch-banner-2026.svg" alt="Day 1 memory" />
+          <img id="lastday-image" class="media-frame transition-image" src="assets/batch-banner-2026.svg" alt="Last day memory" />
+        </div>
+      </article>
+
+      <article class="pin-card form-card submit-card" id="submission-form">
+        <!-- <span class="pin-label">Submit Here</span> -->
+        <h3 class="section-title">• Submission Form •</h3>
+        <form id="capsule-form" class="capsule-form">
+          <label>
+            Full name <span style="font-size: 12px; color: var(--muted); font-style: italic;"> (LASTNAME_FIRSTNAME_MIDDLEINITIAL) </span>
+            <input id="name-input" name="participantName" type="text" placeholder="DELA CRUZ_JUAN_P." required />
+          </label>
+          <label>
+            Message to your future self
+            <textarea id="message-input" name="message" rows="4" maxlength="500" placeholder="Write your short message here..." required></textarea>
+          </label>
+          <label class="file-upload">
+            Upload your memories here!
+            <input id="files-input" name="attachments" type="file" multiple hidden />
+            <span class="custom-file-button">Choose Files</span>
+            <p id="file-names" class="file-names">No files selected</p>
+          </label>
+          <button type="submit" class="button secondary submit-button custom-file-button"> Submit! </button>
+          <p id="form-status" class="form-status" aria-live="polite"></p>
+        </form>
+      </article>
+    </section>
+  </main>
+
+  <!-- <footer class="site-footer">
+    <p>Impostor-proof vault UI: timer, 2 videos, transition memories, and submission form.</p>
+  </footer> -->
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

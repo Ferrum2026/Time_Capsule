@@ -1,0 +1,24 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "settings": {
+      "revealAt": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+      }
+    },
+    "capsuleEntries": {
+      ".read": "auth != null && (now >= root.child('settings').child('revealAt').val() || root.child('admins').child(auth.uid).val() === true)",
+      "$person": {
+        ".write": "auth != null"
+      }
+    },
+    "admins": {
+      "$uid": {
+        ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+      }
+    }
+  }
+}
