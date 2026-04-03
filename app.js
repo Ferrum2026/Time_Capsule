@@ -17,8 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     revealDateLabel: document.getElementById('reveal-date-label'),
     filmVideo: document.getElementById('film-video'),
     btsVideo: document.getElementById('bts-video'),
-    day1Image: document.getElementById('day1-image'),
-    lastdayImage: document.getElementById('lastday-image'),
+    memoriesLink: document.getElementById('memories-link'),
     formLinkTop: document.getElementById('form-link-top'),
     siteLogo: document.getElementById('site-logo'),
     days: document.getElementById('cd-days'),
@@ -30,6 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
     messageInput: document.getElementById('message-input'),
     filesInput: document.getElementById('files-input'),
     formStatus: document.getElementById('form-status'),
+    entriesStatus: document.getElementById('entries-status'),
+    entriesBoard: document.getElementById('entries-board'),
   };
 
   setText(els.title, ui.siteTitle || 'Batch Fe Time Capsule Vault');
@@ -37,17 +38,16 @@ document.addEventListener('DOMContentLoaded', () => {
   setText(els.vaultTitle, ui.vaultTitle || 'Batch Time Capsule Vault');
   setText(els.vaultDescription, ui.vaultDescription || 'This vault opens when the countdown reaches zero.');
   setSrc(els.siteLogo, ui.logoPath || 'assets/batch-logo-2026.svg');
-  setSrc(els.day1Image, ui.dayOneImagePath || ui.heroImagePath || 'assets/batch-banner-2026.svg');
-  setSrc(els.lastdayImage, ui.lastDayImagePath || ui.throwbackImagePath || 'assets/batch-banner-2026.svg');
   setVideoSource(els.filmVideo, ui.filmVideoPath);
   setVideoSource(els.btsVideo, ui.behindScenesVideoPath);
+  setLinkHref(els.memoriesLink, ui.facebookPageUrl || ui.memoriesPageUrl || '');
 
   if (els.formLinkTop) els.formLinkTop.href = '#submission-form';
   if (els.revealDateLabel) els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
 
   let database = null;
   let countdownTimer = null;
-  let transitionTimer = null;
+  let entriesRef = null;
 
   function setText(el, value) {
     if (el) el.textContent = value;
@@ -60,6 +60,31 @@ document.addEventListener('DOMContentLoaded', () => {
   function setVideoSource(video, path) {
     if (!video || !path) return;
     video.src = path;
+  }
+
+  function normalizeExternalUrl(rawUrl) {
+    const value = String(rawUrl || '').trim();
+    if (!value) return '';
+    if (/^https?:\/\//i.test(value)) return value;
+    if (/^(www\.)?facebook\.com\//i.test(value)) return `https://${value.replace(/^https?:\/\//i, '')}`;
+    if (/^www\./i.test(value)) return `https://${value}`;
+    return '';
+  }
+
+  function setLinkHref(link, href) {
+    if (!link) return;
+    const normalizedUrl = normalizeExternalUrl(href);
+    if (!normalizedUrl) {
+      link.removeAttribute('href');
+      link.removeAttribute('target');
+      link.setAttribute('aria-disabled', 'true');
+      link.classList.add('is-disabled');
+      link.textContent = 'Facebook link not set yet';
+      return;
+    }
+    link.href = normalizedUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
   }
 
   function formatDate(date) {
@@ -118,16 +143,167 @@ document.addEventListener('DOMContentLoaded', () => {
       els.vaultState.textContent = 'Vault is still locked...';
       els.vaultState.className = 'vault-state locked';
     }
+    updateEntriesVisibility();
   }
 
-  function startImageTransition() {
-    if (!els.day1Image || !els.lastdayImage) return;
-    let showDay1 = false;
-    transitionTimer = window.setInterval(() => {
-      showDay1 = !showDay1;
-      els.day1Image.classList.toggle('is-visible', showDay1);
-      els.lastdayImage.classList.toggle('is-visible', !showDay1);
-    }, 3200);
+  function updateEntriesVisibility() {
+    if (!els.entriesBoard || !els.entriesStatus) return;
+    if (!isOpen()) {
+      els.entriesBoard.hidden = true;
+      els.entriesStatus.textContent = 'Submitted memories will appear once the vault is open.';
+      return;
+    }
+    els.entriesBoard.hidden = false;
+    if (!els.entriesBoard.children.length) {
+      els.entriesStatus.textContent = 'No submissions yet.';
+    }
+  }
+
+  function createAttachmentNode(attachment) {
+    const wrap = document.createElement('div');
+    wrap.className = 'entry-attachment';
+    const type = String(attachment?.type || '').toLowerCase();
+    const name = String(attachment?.name || 'Attachment');
+    const dataUrl = String(attachment?.dataUrl || '');
+    if (!dataUrl) return wrap;
+
+    if (type.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.alt = name;
+      img.loading = 'lazy';
+      img.className = 'entry-attachment-media';
+      wrap.appendChild(img);
+      return wrap;
+    }
+
+    if (type.startsWith('video/')) {
+      const video = document.createElement('video');
+      video.src = dataUrl;
+      video.controls = true;
+      video.className = 'entry-attachment-media';
+      wrap.appendChild(video);
+      return wrap;
+    }
+
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = `Open ${name}`;
+    wrap.appendChild(link);
+    return wrap;
+  }
+
+  function looksLikePeopleMap(candidate) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
+    const items = Object.values(candidate);
+    if (!items.length) return false;
+    return items.some((item) => {
+      if (!item || typeof item !== 'object') return false;
+      if (item.submissions && typeof item.submissions === 'object') return true;
+      if (item.profile && typeof item.profile === 'object') return true;
+      return typeof item.displayName === 'string';
+    });
+  }
+
+  function detectEntriesData(rootData) {
+    const preferredPath = String(firebasePath || '').trim();
+    if (preferredPath && looksLikePeopleMap(rootData?.[preferredPath])) {
+      return { data: rootData[preferredPath], source: preferredPath };
+    }
+
+    const fallbackPaths = ['capsuleEntries', 'entries', 'submissions'];
+    for (const path of fallbackPaths) {
+      if (looksLikePeopleMap(rootData?.[path])) {
+        return { data: rootData[path], source: path };
+      }
+    }
+
+    if (looksLikePeopleMap(rootData)) {
+      return { data: rootData, source: '(root)' };
+    }
+
+    return { data: {}, source: preferredPath || '(unknown)' };
+  }
+
+  function renderEntries(data, sourceLabel) {
+    if (!els.entriesBoard || !els.entriesStatus) return;
+    if (!isOpen()) return;
+
+    els.entriesBoard.innerHTML = '';
+    const people = Object.values(data || {});
+    if (!people.length) {
+      els.entriesStatus.textContent = 'No submissions yet.';
+      return;
+    }
+
+    const sortedPeople = people.sort((a, b) => {
+      const aTime = new Date(a?.updatedAt || 0).getTime();
+      const bTime = new Date(b?.updatedAt || 0).getTime();
+      return bTime - aTime;
+    });
+
+    for (const person of sortedPeople) {
+      const card = document.createElement('article');
+      card.className = 'entry-card';
+
+      const title = document.createElement('h4');
+      title.textContent = person?.displayName || 'Unnamed participant';
+      card.appendChild(title);
+
+      const submissions = Object.values(person?.submissions || {}).sort((a, b) => {
+        const aTime = new Date(a?.createdAt || 0).getTime();
+        const bTime = new Date(b?.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+
+      if (!submissions.length) {
+        const empty = document.createElement('p');
+        empty.textContent = 'No messages yet.';
+        card.appendChild(empty);
+      }
+
+      for (const submission of submissions) {
+        const block = document.createElement('div');
+        block.className = 'entry-submission';
+
+        const meta = document.createElement('small');
+        const stamp = submission?.createdAt ? formatDate(new Date(submission.createdAt)) : 'Unknown time';
+        meta.textContent = `Submitted: ${stamp}`;
+        block.appendChild(meta);
+
+        const message = document.createElement('p');
+        message.textContent = String(submission?.message || '');
+        block.appendChild(message);
+
+        const attachments = Array.isArray(submission?.attachments) ? submission.attachments : [];
+        if (attachments.length) {
+          const filesWrap = document.createElement('div');
+          filesWrap.className = 'entry-attachments';
+          attachments.forEach((attachment) => filesWrap.appendChild(createAttachmentNode(attachment)));
+          block.appendChild(filesWrap);
+        }
+        card.appendChild(block);
+      }
+
+      els.entriesBoard.appendChild(card);
+    }
+
+    const suffix = sourceLabel ? ` from ${sourceLabel}` : '';
+    els.entriesStatus.textContent = `Loaded ${sortedPeople.length} participant${sortedPeople.length === 1 ? '' : 's'}${suffix}.`;
+  }
+
+  function subscribeEntries() {
+    if (!database) return;
+    entriesRef = database.ref('/');
+    entriesRef.on('value', (snapshot) => {
+      const rootData = snapshot.val() || {};
+      const detected = detectEntriesData(rootData);
+      renderEntries(detected.data, detected.source);
+    }, () => {
+      if (els.entriesStatus) els.entriesStatus.textContent = 'Failed to load submissions.';
+    });
   }
 
   function normalizeName(rawValue) {
@@ -218,17 +394,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   try {
     initializeFirebase();
+    subscribeEntries();
   } catch (error) {
     setStatus(error.message || 'Firebase initialization failed.', 'error');
+    if (els.entriesStatus) els.entriesStatus.textContent = error.message || 'Firebase initialization failed.';
   }
 
   updateCountdown();
-  startImageTransition();
+  updateEntriesVisibility();
   if (els.form) els.form.addEventListener('submit', handleFormSubmit);
 
   window.addEventListener('beforeunload', () => {
     if (countdownTimer) window.clearTimeout(countdownTimer);
-    if (transitionTimer) window.clearInterval(transitionTimer);
+    if (entriesRef) entriesRef.off();
   });
 
   const fileButton = document.querySelector(".custom-file-button");
