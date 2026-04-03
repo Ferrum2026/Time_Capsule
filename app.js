@@ -49,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let database = null;
   let countdownTimer = null;
   let latestEntriesData = {};
-  let hasSubscribedEntries = false;
 
   function setText(el, value) {
     if (el) el.textContent = value;
@@ -132,19 +131,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!els.entriesBoard || !els.entriesStatus || !els.entriesSection) return;
     if (!isOpen()) {
       els.entriesSection.hidden = true;
-      els.entriesSection.style.display = 'none';
       els.entriesBoard.innerHTML = '';
-      els.entriesStatus.textContent = 'Submitted memories will appear once the vault is open.';
       return;
     }
 
     els.entriesSection.hidden = false;
-    els.entriesSection.style.display = '';
     els.entriesBoard.hidden = false;
-    if (!hasSubscribedEntries) {
-      subscribeEntries();
-      return;
-    }
     renderEntries(latestEntriesData);
   }
 
@@ -186,7 +178,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderEntries(data) {
     if (!els.entriesBoard || !els.entriesStatus) return;
-    if (!isOpen()) return;
 
     els.entriesBoard.innerHTML = '';
     const entries = Object.values(data || {});
@@ -267,16 +258,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function subscribeEntries() {
-    if (!database || !els.entriesStatus || hasSubscribedEntries) return;
-    hasSubscribedEntries = true;
+    if (!database || !els.entriesStatus) return;
     els.entriesStatus.textContent = 'Loading submissions from Firebase...';
 
     database.ref(firebasePath).on(
       'value',
       (snapshot) => {
-        latestEntriesData = snapshot.val() || {};
+        renderEntries(snapshot.val() || {});
         if (!isOpen()) updateEntriesVisibility();
-        else renderEntries(latestEntriesData);
       },
       (error) => {
         els.entriesStatus.textContent = `Failed to load submissions: ${error?.message || 'Unknown error'}`;
