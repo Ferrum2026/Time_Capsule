@@ -65,6 +65,11 @@ body {
 }
 .button.primary { background: transparent; color: #fff; border: #ffffff 1px solid;}
 .button.secondary { background: linear-gradient(90deg, #2563eb, #7c3aed); color: #fff; }
+.button.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: not-allowed;
+}
 
 .page-shell { padding: 8px 0 34px; display: grid; gap: 18px; }
 
