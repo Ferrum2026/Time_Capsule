@@ -29,6 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
     messageInput: document.getElementById('message-input'),
     filesInput: document.getElementById('files-input'),
     formStatus: document.getElementById('form-status'),
+    entriesStatus: document.getElementById('entries-status'),
+    entriesBoard: document.getElementById('entries-board'),
   };
 
   setText(els.title, ui.siteTitle || 'Batch Fe Time Capsule Vault');
@@ -120,6 +122,122 @@ document.addEventListener('DOMContentLoaded', () => {
       els.vaultState.textContent = 'Vault is still locked...';
       els.vaultState.className = 'vault-state locked';
     }
+    updateEntriesVisibility();
+  }
+
+  function updateEntriesVisibility() {
+    if (!els.entriesBoard || !els.entriesStatus) return;
+    if (!isOpen()) {
+      els.entriesBoard.hidden = true;
+      els.entriesStatus.textContent = 'Submitted memories will appear once the vault is open.';
+      return;
+    }
+    els.entriesBoard.hidden = false;
+    if (!els.entriesBoard.children.length) {
+      els.entriesStatus.textContent = 'No submissions yet.';
+    }
+  }
+
+  function createAttachmentNode(attachment) {
+    const wrap = document.createElement('div');
+    wrap.className = 'entry-attachment';
+    const type = String(attachment?.type || '').toLowerCase();
+    const name = String(attachment?.name || 'Attachment');
+    const dataUrl = String(attachment?.dataUrl || '');
+    if (!dataUrl) return wrap;
+
+    if (type.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.alt = name;
+      img.loading = 'lazy';
+      img.className = 'entry-attachment-media';
+      wrap.appendChild(img);
+      return wrap;
+    }
+
+    if (type.startsWith('video/')) {
+      const video = document.createElement('video');
+      video.src = dataUrl;
+      video.controls = true;
+      video.className = 'entry-attachment-media';
+      wrap.appendChild(video);
+      return wrap;
+    }
+
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = `Open ${name}`;
+    wrap.appendChild(link);
+    return wrap;
+  }
+
+  function renderEntries(data) {
+    if (!els.entriesBoard || !els.entriesStatus) return;
+    if (!isOpen()) return;
+
+    els.entriesBoard.innerHTML = '';
+    const people = Object.values(data || {});
+    if (!people.length) {
+      els.entriesStatus.textContent = 'No submissions yet.';
+      return;
+    }
+
+    const sortedPeople = people.sort((a, b) => {
+      const aTime = new Date(a?.updatedAt || 0).getTime();
+      const bTime = new Date(b?.updatedAt || 0).getTime();
+      return bTime - aTime;
+    });
+
+    for (const person of sortedPeople) {
+      const card = document.createElement('article');
+      card.className = 'entry-card';
+
+      const title = document.createElement('h4');
+      title.textContent = person?.displayName || 'Unnamed participant';
+      card.appendChild(title);
+
+      const submissions = Object.values(person?.submissions || {}).sort((a, b) => {
+        const aTime = new Date(a?.createdAt || 0).getTime();
+        const bTime = new Date(b?.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+
+      if (!submissions.length) {
+        const empty = document.createElement('p');
+        empty.textContent = 'No messages yet.';
+        card.appendChild(empty);
+      }
+
+      for (const submission of submissions) {
+        const block = document.createElement('div');
+        block.className = 'entry-submission';
+
+        const meta = document.createElement('small');
+        const stamp = submission?.createdAt ? formatDate(new Date(submission.createdAt)) : 'Unknown time';
+        meta.textContent = `Submitted: ${stamp}`;
+        block.appendChild(meta);
+
+        const message = document.createElement('p');
+        message.textContent = String(submission?.message || '');
+        block.appendChild(message);
+
+        const attachments = Array.isArray(submission?.attachments) ? submission.attachments : [];
+        if (attachments.length) {
+          const filesWrap = document.createElement('div');
+          filesWrap.className = 'entry-attachments';
+          attachments.forEach((attachment) => filesWrap.appendChild(createAttachmentNode(attachment)));
+          block.appendChild(filesWrap);
+        }
+        card.appendChild(block);
+      }
+
+      els.entriesBoard.appendChild(card);
+    }
+
+    els.entriesStatus.textContent = `Loaded ${sortedPeople.length} participant${sortedPeople.length === 1 ? '' : 's'}.`;
   }
 
   function normalizeName(rawValue) {
@@ -210,8 +328,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   try {
     initializeFirebase();
+    subscribeEntries();
   } catch (error) {
     setStatus(error.message || 'Firebase initialization failed.', 'error');
+    if (els.entriesStatus) els.entriesStatus.textContent = error.message || 'Firebase initialization failed.';
   }
 
   updateCountdown();
