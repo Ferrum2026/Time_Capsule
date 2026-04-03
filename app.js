@@ -49,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let database = null;
   let countdownTimer = null;
   let latestEntriesData = {};
-  let hasSubscribedEntries = false;
 
   function setText(el, value) {
     if (el) el.textContent = value;
@@ -138,10 +137,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     els.entriesSection.hidden = false;
     els.entriesBoard.hidden = false;
-    if (!hasSubscribedEntries) {
-      subscribeEntries();
-      return;
-    }
     renderEntries(latestEntriesData);
   }
 
@@ -263,16 +258,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function subscribeEntries() {
-    if (!database || !els.entriesStatus || hasSubscribedEntries) return;
-    hasSubscribedEntries = true;
+    if (!database || !els.entriesStatus) return;
     els.entriesStatus.textContent = 'Loading submissions from Firebase...';
 
     database.ref(firebasePath).on(
       'value',
       (snapshot) => {
-        latestEntriesData = snapshot.val() || {};
+        renderEntries(snapshot.val() || {});
         if (!isOpen()) updateEntriesVisibility();
-        else renderEntries(latestEntriesData);
       },
       (error) => {
         els.entriesStatus.textContent = `Failed to load submissions: ${error?.message || 'Unknown error'}`;
