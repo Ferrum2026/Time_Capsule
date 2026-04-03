@@ -17,8 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     revealDateLabel: document.getElementById('reveal-date-label'),
     filmVideo: document.getElementById('film-video'),
     btsVideo: document.getElementById('bts-video'),
-    day1Image: document.getElementById('day1-image'),
-    lastdayImage: document.getElementById('lastday-image'),
+    memoriesLink: document.getElementById('memories-link'),
     formLinkTop: document.getElementById('form-link-top'),
     siteLogo: document.getElementById('site-logo'),
     days: document.getElementById('cd-days'),
@@ -37,17 +36,15 @@ document.addEventListener('DOMContentLoaded', () => {
   setText(els.vaultTitle, ui.vaultTitle || 'Batch Time Capsule Vault');
   setText(els.vaultDescription, ui.vaultDescription || 'This vault opens when the countdown reaches zero.');
   setSrc(els.siteLogo, ui.logoPath || 'assets/batch-logo-2026.svg');
-  setSrc(els.day1Image, ui.dayOneImagePath || ui.heroImagePath || 'assets/batch-banner-2026.svg');
-  setSrc(els.lastdayImage, ui.lastDayImagePath || ui.throwbackImagePath || 'assets/batch-banner-2026.svg');
   setVideoSource(els.filmVideo, ui.filmVideoPath);
   setVideoSource(els.btsVideo, ui.behindScenesVideoPath);
+  setLinkHref(els.memoriesLink, ui.facebookPageUrl || ui.memoriesPageUrl || '#');
 
   if (els.formLinkTop) els.formLinkTop.href = '#submission-form';
   if (els.revealDateLabel) els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
 
   let database = null;
   let countdownTimer = null;
-  let transitionTimer = null;
 
   function setText(el, value) {
     if (el) el.textContent = value;
@@ -60,6 +57,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function setVideoSource(video, path) {
     if (!video || !path) return;
     video.src = path;
+  }
+
+  function setLinkHref(link, href) {
+    if (!link || !href) return;
+    link.href = href;
   }
 
   function formatDate(date) {
@@ -118,16 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
       els.vaultState.textContent = 'Vault is still locked...';
       els.vaultState.className = 'vault-state locked';
     }
-  }
-
-  function startImageTransition() {
-    if (!els.day1Image || !els.lastdayImage) return;
-    let showDay1 = false;
-    transitionTimer = window.setInterval(() => {
-      showDay1 = !showDay1;
-      els.day1Image.classList.toggle('is-visible', showDay1);
-      els.lastdayImage.classList.toggle('is-visible', !showDay1);
-    }, 3200);
   }
 
   function normalizeName(rawValue) {
@@ -223,12 +215,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   updateCountdown();
-  startImageTransition();
   if (els.form) els.form.addEventListener('submit', handleFormSubmit);
 
   window.addEventListener('beforeunload', () => {
     if (countdownTimer) window.clearTimeout(countdownTimer);
-    if (transitionTimer) window.clearInterval(transitionTimer);
   });
 
   const fileButton = document.querySelector(".custom-file-button");
