@@ -10,6 +10,7 @@ This folder is for your manual uploads.
    - `logoPath: 'media/my-logo.png'`
    - `heroImagePath: 'media/main-photo.jpg'`
    - `throwbackImagePath: 'media/day-one.jpg'`
+   - `facebookPageUrl: 'https://www.facebook.com/YourBatchPage'` (include `https://`)
    - `filmVideoPath: 'media/batch-film.mp4'`
    - `behindScenesVideoPath: 'media/bts-loop.mp4'`
 
