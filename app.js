@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     formStatus: document.getElementById('form-status'),
     entriesStatus: document.getElementById('entries-status'),
     entriesBoard: document.getElementById('entries-board'),
+    entriesSection: document.getElementById('entries-section'),
   };
 
   setText(els.title, ui.siteTitle || 'Batch Fe Time Capsule Vault');
@@ -127,12 +128,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateEntriesVisibility() {
-    if (!els.entriesBoard || !els.entriesStatus) return;
+    if (!els.entriesBoard || !els.entriesStatus || !els.entriesSection) return;
     if (!isOpen()) {
-      els.entriesBoard.hidden = true;
-      els.entriesStatus.textContent = 'Submitted memories will appear once the vault is open.';
+      els.entriesSection.hidden = true;
+      els.entriesBoard.innerHTML = '';
       return;
     }
+
+    els.entriesSection.hidden = false;
     els.entriesBoard.hidden = false;
     renderEntries(latestEntriesData);
   }
@@ -358,7 +361,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   try {
     initializeFirebase();
-    subscribeEntries();
   } catch (error) {
     setStatus(error.message || 'Firebase initialization failed.', 'error');
     if (els.entriesStatus) els.entriesStatus.textContent = error.message || 'Firebase initialization failed.';
