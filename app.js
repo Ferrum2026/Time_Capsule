@@ -188,7 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderEntries(data) {
     if (!els.entriesBoard || !els.entriesStatus) return;
-    if (!isOpen()) return;
 
     els.entriesBoard.innerHTML = '';
     const entries = Object.values(data || {});
@@ -391,6 +390,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function initializeFirebase() {
     if (!firebaseConfig || typeof firebase === 'undefined' || !firebase.apps) {
       throw new Error('Firebase config is missing. Add your project details in firebase-config.js.');
+    }
+    if (!firebase.storage) {
+      throw new Error('Firebase Storage SDK is missing. Add firebase-storage-compat script in index.html.');
     }
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     database = firebase.database();
