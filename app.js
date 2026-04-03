@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     formStatus: document.getElementById('form-status'),
     entriesStatus: document.getElementById('entries-status'),
     entriesBoard: document.getElementById('entries-board'),
+    entriesSection: document.getElementById('entries-section'),
   };
 
   setText(els.title, ui.siteTitle || 'Batch Fe Time Capsule Vault');
@@ -47,6 +48,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let database = null;
   let countdownTimer = null;
+  let latestEntriesData = {};
+  let hasSubscribedEntries = false;
 
   function setText(el, value) {
     if (el) el.textContent = value;
@@ -126,16 +129,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateEntriesVisibility() {
-    if (!els.entriesBoard || !els.entriesStatus) return;
+    if (!els.entriesBoard || !els.entriesStatus || !els.entriesSection) return;
     if (!isOpen()) {
-      els.entriesBoard.hidden = true;
+      els.entriesSection.hidden = true;
+      els.entriesSection.style.display = 'none';
+      els.entriesBoard.innerHTML = '';
       els.entriesStatus.textContent = 'Submitted memories will appear once the vault is open.';
       return;
     }
+
+    els.entriesSection.hidden = false;
+    els.entriesSection.style.display = '';
     els.entriesBoard.hidden = false;
-    if (!els.entriesBoard.children.length) {
-      els.entriesStatus.textContent = 'No submissions yet.';
+    if (!hasSubscribedEntries) {
+      subscribeEntries();
+      return;
     }
+    renderEntries(latestEntriesData);
   }
 
   function createAttachmentNode(attachment) {
@@ -179,17 +189,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!isOpen()) return;
 
     els.entriesBoard.innerHTML = '';
-    const people = Object.values(data || {});
-    if (!people.length) {
+    const entries = Object.values(data || {});
+    if (!entries.length) {
       els.entriesStatus.textContent = 'No submissions yet.';
       return;
     }
 
-    const sortedPeople = people.sort((a, b) => {
-      const aTime = new Date(a?.updatedAt || 0).getTime();
-      const bTime = new Date(b?.updatedAt || 0).getTime();
-      return bTime - aTime;
-    });
+    const groupedByName = new Map();
+    for (const person of entries) {
+      const displayName = String(
+        person?.displayName ||
+        person?.profile?.displayName ||
+        'Unnamed participant'
+      ).trim();
+      const groupingKey = displayName.toUpperCase();
+
+      if (!groupedByName.has(groupingKey)) {
+        groupedByName.set(groupingKey, { displayName, submissions: [] });
+      }
+
+      const group = groupedByName.get(groupingKey);
+      const submissions = Object.values(person?.submissions || {});
+      group.submissions.push(...submissions);
+    }
+
+    const sortedPeople = Array.from(groupedByName.values()).sort((a, b) =>
+      a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' })
+    );
 
     for (const person of sortedPeople) {
       const card = document.createElement('article');
@@ -238,6 +264,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     els.entriesStatus.textContent = `Loaded ${sortedPeople.length} participant${sortedPeople.length === 1 ? '' : 's'}.`;
+  }
+
+  function subscribeEntries() {
+    if (!database || !els.entriesStatus || hasSubscribedEntries) return;
+    hasSubscribedEntries = true;
+    els.entriesStatus.textContent = 'Loading submissions from Firebase...';
+
+    database.ref(firebasePath).on(
+      'value',
+      (snapshot) => {
+        latestEntriesData = snapshot.val() || {};
+        if (!isOpen()) updateEntriesVisibility();
+        else renderEntries(latestEntriesData);
+      },
+      (error) => {
+        els.entriesStatus.textContent = `Failed to load submissions: ${error?.message || 'Unknown error'}`;
+      }
+    );
   }
 
   function normalizeName(rawValue) {
@@ -328,7 +372,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   try {
     initializeFirebase();
-    subscribeEntries();
   } catch (error) {
     setStatus(error.message || 'Firebase initialization failed.', 'error');
     if (els.entriesStatus) els.entriesStatus.textContent = error.message || 'Firebase initialization failed.';
@@ -351,18 +394,20 @@ if (fileButton && els.filesInput) {
 
 const fileNames = document.getElementById("file-names");
 
-els.filesInput.addEventListener("change", () => {
-  const files = Array.from(els.filesInput.files);
+if (els.filesInput && fileNames) {
+  els.filesInput.addEventListener("change", () => {
+    const files = Array.from(els.filesInput.files);
 
-  if (files.length === 0) {
-    fileNames.textContent = "No files selected";
-    return;
-  }
+    if (files.length === 0) {
+      fileNames.textContent = "No files selected";
+      return;
+    }
 
-  if (files.length === 1) {
-    fileNames.textContent = files[0].name;
-  } else {
-    fileNames.textContent = files.map(f => f.name).join(", ");
-  }
-});
+    if (files.length === 1) {
+      fileNames.textContent = files[0].name;
+    } else {
+      fileNames.textContent = files.map(f => f.name).join(", ");
+    }
+  });
+}
 });
