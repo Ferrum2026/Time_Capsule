@@ -52,6 +52,10 @@ const appConfig = {
     logoPath: 'media/BATCH FERRUM LOGO.png',
     heroImagePath: '',
     throwbackImagePath: '',
+    // Paste your class Facebook page link for the "Our Memories" button.
+    // Use a full URL with https://
+    // Example: 'https://www.facebook.com/YourBatchPage'
+    facebookPageUrl: '',
     filmVideoPath: '',
     behindScenesVideoPath: ''
   }
