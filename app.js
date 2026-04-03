@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const ui = config.ui || {};
 
   const revealDate = new Date(config.revealIso || Date.now());
-  const isForcedOpen = true; // simple always-open mode
+  const isForcedOpen = parseBoolean(config.forceOpenVault);
   const firebasePath = config.firebasePath || 'capsuleEntries';
   const maxFileSizeBytes = 5 * 1024 * 1024 * 1024; // 5 GB per file
   const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
