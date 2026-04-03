@@ -240,6 +240,22 @@ document.addEventListener('DOMContentLoaded', () => {
     els.entriesStatus.textContent = `Loaded ${sortedPeople.length} participant${sortedPeople.length === 1 ? '' : 's'}.`;
   }
 
+  function subscribeEntries() {
+    if (!database || !els.entriesStatus) return;
+    els.entriesStatus.textContent = 'Loading submissions from Firebase...';
+
+    database.ref(firebasePath).on(
+      'value',
+      (snapshot) => {
+        renderEntries(snapshot.val() || {});
+        if (!isOpen()) updateEntriesVisibility();
+      },
+      (error) => {
+        els.entriesStatus.textContent = `Failed to load submissions: ${error?.message || 'Unknown error'}`;
+      }
+    );
+  }
+
   function normalizeName(rawValue) {
     return String(rawValue || '').trim().replace(/\s+/g, ' ').toUpperCase();
   }
@@ -351,18 +367,20 @@ if (fileButton && els.filesInput) {
 
 const fileNames = document.getElementById("file-names");
 
-els.filesInput.addEventListener("change", () => {
-  const files = Array.from(els.filesInput.files);
+if (els.filesInput && fileNames) {
+  els.filesInput.addEventListener("change", () => {
+    const files = Array.from(els.filesInput.files);
 
-  if (files.length === 0) {
-    fileNames.textContent = "No files selected";
-    return;
-  }
+    if (files.length === 0) {
+      fileNames.textContent = "No files selected";
+      return;
+    }
 
-  if (files.length === 1) {
-    fileNames.textContent = files[0].name;
-  } else {
-    fileNames.textContent = files.map(f => f.name).join(", ");
-  }
-});
+    if (files.length === 1) {
+      fileNames.textContent = files[0].name;
+    } else {
+      fileNames.textContent = files.map(f => f.name).join(", ");
+    }
+  });
+}
 });
