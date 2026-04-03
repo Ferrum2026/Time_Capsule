@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setSrc(els.siteLogo, ui.logoPath || 'assets/batch-logo-2026.svg');
   setVideoSource(els.filmVideo, ui.filmVideoPath);
   setVideoSource(els.btsVideo, ui.behindScenesVideoPath);
-  setLinkHref(els.memoriesLink, ui.facebookPageUrl || ui.memoriesPageUrl || '');
+  setLinkHref(els.memoriesLink, ui.facebookPageUrl || ui.memoriesPageUrl || '#');
 
   if (els.formLinkTop) els.formLinkTop.href = '#submission-form';
   if (els.revealDateLabel) els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
@@ -59,29 +59,9 @@ document.addEventListener('DOMContentLoaded', () => {
     video.src = path;
   }
 
-  function normalizeExternalUrl(rawUrl) {
-    const value = String(rawUrl || '').trim();
-    if (!value) return '';
-    if (/^https?:\/\//i.test(value)) return value;
-    if (/^(www\.)?facebook\.com\//i.test(value)) return `https://${value.replace(/^https?:\/\//i, '')}`;
-    if (/^www\./i.test(value)) return `https://${value}`;
-    return '';
-  }
-
   function setLinkHref(link, href) {
-    if (!link) return;
-    const normalizedUrl = normalizeExternalUrl(href);
-    if (!normalizedUrl) {
-      link.removeAttribute('href');
-      link.removeAttribute('target');
-      link.setAttribute('aria-disabled', 'true');
-      link.classList.add('is-disabled');
-      link.textContent = 'Facebook link not set yet';
-      return;
-    }
-    link.href = normalizedUrl;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
+    if (!link || !href) return;
+    link.href = href;
   }
 
   function formatDate(date) {
