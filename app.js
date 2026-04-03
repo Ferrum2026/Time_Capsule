@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const revealDate = new Date(config.revealIso || Date.now());
   const isForcedOpen = parseBoolean(config.forceOpenVault);
   const firebasePath = config.firebasePath || 'capsuleEntries';
+  const maxFileSizeBytes = 5 * 1024 * 1024 * 1024; // 5 GB per file
   const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
   const els = {
@@ -31,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     formStatus: document.getElementById('form-status'),
     entriesStatus: document.getElementById('entries-status'),
     entriesBoard: document.getElementById('entries-board'),
+    entriesSection: document.getElementById('entries-section'),
   };
 
   setText(els.title, ui.siteTitle || 'Batch Fe Time Capsule Vault');
@@ -46,7 +48,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (els.revealDateLabel) els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
 
   let database = null;
+  let storage = null;
   let countdownTimer = null;
+  let latestEntriesData = {};
+  let hasSubscribedEntries = false;
 
   function setText(el, value) {
     if (el) el.textContent = value;
@@ -126,16 +131,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateEntriesVisibility() {
-    if (!els.entriesBoard || !els.entriesStatus) return;
+    if (!els.entriesBoard || !els.entriesStatus || !els.entriesSection) return;
     if (!isOpen()) {
-      els.entriesBoard.hidden = true;
+      els.entriesSection.hidden = true;
+      els.entriesSection.style.display = 'none';
+      els.entriesBoard.innerHTML = '';
       els.entriesStatus.textContent = 'Submitted memories will appear once the vault is open.';
       return;
     }
+
+    els.entriesSection.hidden = false;
+    els.entriesSection.style.display = '';
     els.entriesBoard.hidden = false;
-    if (!els.entriesBoard.children.length) {
-      els.entriesStatus.textContent = 'No submissions yet.';
+    if (!hasSubscribedEntries) {
+      subscribeEntries();
+      return;
     }
+    renderEntries(latestEntriesData);
   }
 
   function createAttachmentNode(attachment) {
@@ -143,12 +155,12 @@ document.addEventListener('DOMContentLoaded', () => {
     wrap.className = 'entry-attachment';
     const type = String(attachment?.type || '').toLowerCase();
     const name = String(attachment?.name || 'Attachment');
-    const dataUrl = String(attachment?.dataUrl || '');
-    if (!dataUrl) return wrap;
+    const fileUrl = String(attachment?.downloadUrl || attachment?.dataUrl || '');
+    if (!fileUrl) return wrap;
 
     if (type.startsWith('image/')) {
       const img = document.createElement('img');
-      img.src = dataUrl;
+      img.src = fileUrl;
       img.alt = name;
       img.loading = 'lazy';
       img.className = 'entry-attachment-media';
@@ -158,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (type.startsWith('video/')) {
       const video = document.createElement('video');
-      video.src = dataUrl;
+      video.src = fileUrl;
       video.controls = true;
       video.className = 'entry-attachment-media';
       wrap.appendChild(video);
@@ -166,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const link = document.createElement('a');
-    link.href = dataUrl;
+    link.href = fileUrl;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.textContent = `Open ${name}`;
@@ -179,17 +191,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!isOpen()) return;
 
     els.entriesBoard.innerHTML = '';
-    const people = Object.values(data || {});
-    if (!people.length) {
+    const entries = Object.values(data || {});
+    if (!entries.length) {
       els.entriesStatus.textContent = 'No submissions yet.';
       return;
     }
 
-    const sortedPeople = people.sort((a, b) => {
-      const aTime = new Date(a?.updatedAt || 0).getTime();
-      const bTime = new Date(b?.updatedAt || 0).getTime();
-      return bTime - aTime;
-    });
+    const groupedByName = new Map();
+    for (const person of entries) {
+      const displayName = String(
+        person?.displayName ||
+        person?.profile?.displayName ||
+        'Unnamed participant'
+      ).trim();
+      const groupingKey = displayName.toUpperCase();
+
+      if (!groupedByName.has(groupingKey)) {
+        groupedByName.set(groupingKey, { displayName, submissions: [] });
+      }
+
+      const group = groupedByName.get(groupingKey);
+      const submissions = Object.values(person?.submissions || {});
+      group.submissions.push(...submissions);
+    }
+
+    const sortedPeople = Array.from(groupedByName.values()).sort((a, b) =>
+      a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' })
+    );
 
     for (const person of sortedPeople) {
       const card = document.createElement('article');
@@ -240,6 +268,24 @@ document.addEventListener('DOMContentLoaded', () => {
     els.entriesStatus.textContent = `Loaded ${sortedPeople.length} participant${sortedPeople.length === 1 ? '' : 's'}.`;
   }
 
+  function subscribeEntries() {
+    if (!database || !els.entriesStatus || hasSubscribedEntries) return;
+    hasSubscribedEntries = true;
+    els.entriesStatus.textContent = 'Loading submissions from Firebase...';
+
+    database.ref(firebasePath).on(
+      'value',
+      (snapshot) => {
+        latestEntriesData = snapshot.val() || {};
+        if (!isOpen()) updateEntriesVisibility();
+        else renderEntries(latestEntriesData);
+      },
+      (error) => {
+        els.entriesStatus.textContent = `Failed to load submissions: ${error?.message || 'Unknown error'}`;
+      }
+    );
+  }
+
   function normalizeName(rawValue) {
     return String(rawValue || '').trim().replace(/\s+/g, ' ').toUpperCase();
   }
@@ -262,13 +308,33 @@ document.addEventListener('DOMContentLoaded', () => {
     els.formStatus.className = `form-status ${type || ''}`.trim();
   }
 
-  function readFileAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result || '');
-      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
-      reader.readAsDataURL(file);
+  function sanitizeFileName(name) {
+    return String(name || 'file')
+      .replace(/[^a-zA-Z0-9._-]+/g, '-')
+      .replace(/(^-|-$)/g, '') || 'file';
+  }
+
+  async function uploadFileToStorage(file, personKey, submissionKey) {
+    if (!storage) throw new Error('Firebase Storage is not ready.');
+    if (file.size > maxFileSizeBytes) {
+      throw new Error(`"${file.name}" exceeds the 5 GB limit per file.`);
+    }
+
+    const safeName = sanitizeFileName(file.name);
+    const objectPath = `${firebasePath}/${personKey}/${submissionKey}/${Date.now()}-${safeName}`;
+    const storageRef = storage.ref(objectPath);
+    const snapshot = await storageRef.put(file, {
+      contentType: file.type || 'application/octet-stream',
     });
+    const downloadUrl = await snapshot.ref.getDownloadURL();
+
+    return {
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size || 0,
+      downloadUrl,
+      storagePath: objectPath,
+    };
   }
 
   async function handleFormSubmit(event) {
@@ -286,22 +352,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const message = String(els.messageInput.value || '').trim();
       const files = Array.from(els.filesInput.files || []);
       if (!message) throw new Error('Please enter a short message before saving.');
-
-      setStatus('Preparing files and saving everything to Firebase Realtime Database...', 'loading');
-
-      const nowIso = new Date().toISOString();
-      const attachments = [];
       for (const file of files) {
-        attachments.push({
-          name: file.name,
-          type: file.type || 'application/octet-stream',
-          size: file.size || 0,
-          dataUrl: await readFileAsDataUrl(file),
-        });
+        if (file.size > maxFileSizeBytes) {
+          throw new Error(`"${file.name}" is larger than 5 GB. Please choose a smaller file.`);
+        }
       }
 
+      setStatus('Uploading files (up to 5 GB each) and saving to Firebase...', 'loading');
+
+      const nowIso = new Date().toISOString();
       const personRef = database.ref(`${firebasePath}/${personKey}`);
       const newSubmissionRef = personRef.child('submissions').push();
+      const submissionKey = newSubmissionRef.key || `submission-${Date.now()}`;
+      const attachments = [];
+      for (const file of files) {
+        attachments.push(await uploadFileToStorage(file, personKey, submissionKey));
+      }
 
       await Promise.all([
         personRef.child('profile').set({ displayName, normalizedName: personKey }),
@@ -322,13 +388,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!firebaseConfig || typeof firebase === 'undefined' || !firebase.apps) {
       throw new Error('Firebase config is missing. Add your project details in firebase-config.js.');
     }
+    if (!firebase.storage) {
+      throw new Error('Firebase Storage SDK is missing. Add firebase-storage-compat script in index.html.');
+    }
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     database = firebase.database();
+    storage = firebase.storage();
   }
 
   try {
     initializeFirebase();
-    subscribeEntries();
   } catch (error) {
     setStatus(error.message || 'Firebase initialization failed.', 'error');
     if (els.entriesStatus) els.entriesStatus.textContent = error.message || 'Firebase initialization failed.';
@@ -351,18 +420,20 @@ if (fileButton && els.filesInput) {
 
 const fileNames = document.getElementById("file-names");
 
-els.filesInput.addEventListener("change", () => {
-  const files = Array.from(els.filesInput.files);
+if (els.filesInput && fileNames) {
+  els.filesInput.addEventListener("change", () => {
+    const files = Array.from(els.filesInput.files);
 
-  if (files.length === 0) {
-    fileNames.textContent = "No files selected";
-    return;
-  }
+    if (files.length === 0) {
+      fileNames.textContent = "No files selected";
+      return;
+    }
 
-  if (files.length === 1) {
-    fileNames.textContent = files[0].name;
-  } else {
-    fileNames.textContent = files.map(f => f.name).join(", ");
-  }
-});
+    if (files.length === 1) {
+      fileNames.textContent = files[0].name;
+    } else {
+      fileNames.textContent = files.map(f => f.name).join(", ");
+    }
+  });
+}
 });
