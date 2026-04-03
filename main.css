@@ -65,6 +65,11 @@ body {
 }
 .button.primary { background: transparent; color: #fff; border: #ffffff 1px solid;}
 .button.secondary { background: linear-gradient(90deg, #2563eb, #7c3aed); color: #fff; }
+.button.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: not-allowed;
+}
 
 .page-shell { padding: 8px 0 34px; display: grid; gap: 18px; }
 
@@ -168,6 +173,56 @@ body {
 }
 .pin-card h3 { margin: 0 0 12px; }
 
+.entries-card {
+  grid-column: 1 / -1;
+  text-align: left;
+}
+
+.entries-status {
+  margin: 4px 0 12px;
+  color: var(--muted);
+}
+
+.entries-board {
+  display: grid;
+  gap: 12px;
+}
+
+.entry-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(4, 10, 24, 0.7);
+}
+
+.entry-card h4 {
+  margin: 0 0 8px;
+}
+
+.entry-submission {
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.entry-submission p {
+  margin: 6px 0;
+  white-space: pre-wrap;
+}
+
+.entry-attachments {
+  display: grid;
+  gap: 8px;
+}
+
+.entry-attachment-media {
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+
 .media-frame {
   width: 100%;
   min-height: 240px;
@@ -177,18 +232,6 @@ body {
   background: #060b1d;
   border: 1px solid var(--line);
 }
-.transition-frame {
-  position: relative;
-  min-height: 300px;
-}
-.transition-image {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  transition: opacity 1.8s ease-in-out;
-}
-.transition-image.is-visible { opacity: 1; }
-
 .capsule-form { display: grid; gap: 12px; }
 .capsule-form label { display: grid; gap: 8px; font-weight: 700; }
 .capsule-form input, .capsule-form textarea {
@@ -370,10 +413,6 @@ body {
   .media-frame {
     min-height: 180px;
     max-height: 260px;
-  }
-
-  .transition-frame {
-    min-height: 200px;
   }
 
   .capsule-form input,
