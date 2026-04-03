@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const revealDate = new Date(config.revealIso || Date.now());
   const isForcedOpen = parseBoolean(config.forceOpenVault);
   const firebasePath = config.firebasePath || 'capsuleEntries';
+  const maxFileSizeBytes = 5 * 1024 * 1024 * 1024; // 5 GB per file
   const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
 
   const els = {
@@ -47,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (els.revealDateLabel) els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
 
   let database = null;
+  let storage = null;
   let countdownTimer = null;
   let latestEntriesData = {};
 
@@ -145,12 +147,12 @@ document.addEventListener('DOMContentLoaded', () => {
     wrap.className = 'entry-attachment';
     const type = String(attachment?.type || '').toLowerCase();
     const name = String(attachment?.name || 'Attachment');
-    const dataUrl = String(attachment?.dataUrl || '');
-    if (!dataUrl) return wrap;
+    const fileUrl = String(attachment?.downloadUrl || attachment?.dataUrl || '');
+    if (!fileUrl) return wrap;
 
     if (type.startsWith('image/')) {
       const img = document.createElement('img');
-      img.src = dataUrl;
+      img.src = fileUrl;
       img.alt = name;
       img.loading = 'lazy';
       img.className = 'entry-attachment-media';
@@ -160,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (type.startsWith('video/')) {
       const video = document.createElement('video');
-      video.src = dataUrl;
+      video.src = fileUrl;
       video.controls = true;
       video.className = 'entry-attachment-media';
       wrap.appendChild(video);
@@ -168,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const link = document.createElement('a');
-    link.href = dataUrl;
+    link.href = fileUrl;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.textContent = `Open ${name}`;
@@ -295,13 +297,33 @@ document.addEventListener('DOMContentLoaded', () => {
     els.formStatus.className = `form-status ${type || ''}`.trim();
   }
 
-  function readFileAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result || '');
-      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
-      reader.readAsDataURL(file);
+  function sanitizeFileName(name) {
+    return String(name || 'file')
+      .replace(/[^a-zA-Z0-9._-]+/g, '-')
+      .replace(/(^-|-$)/g, '') || 'file';
+  }
+
+  async function uploadFileToStorage(file, personKey, submissionKey) {
+    if (!storage) throw new Error('Firebase Storage is not ready.');
+    if (file.size > maxFileSizeBytes) {
+      throw new Error(`"${file.name}" exceeds the 5 GB limit per file.`);
+    }
+
+    const safeName = sanitizeFileName(file.name);
+    const objectPath = `${firebasePath}/${personKey}/${submissionKey}/${Date.now()}-${safeName}`;
+    const storageRef = storage.ref(objectPath);
+    const snapshot = await storageRef.put(file, {
+      contentType: file.type || 'application/octet-stream',
     });
+    const downloadUrl = await snapshot.ref.getDownloadURL();
+
+    return {
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size || 0,
+      downloadUrl,
+      storagePath: objectPath,
+    };
   }
 
   async function handleFormSubmit(event) {
@@ -319,22 +341,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const message = String(els.messageInput.value || '').trim();
       const files = Array.from(els.filesInput.files || []);
       if (!message) throw new Error('Please enter a short message before saving.');
-
-      setStatus('Preparing files and saving everything to Firebase Realtime Database...', 'loading');
-
-      const nowIso = new Date().toISOString();
-      const attachments = [];
       for (const file of files) {
-        attachments.push({
-          name: file.name,
-          type: file.type || 'application/octet-stream',
-          size: file.size || 0,
-          dataUrl: await readFileAsDataUrl(file),
-        });
+        if (file.size > maxFileSizeBytes) {
+          throw new Error(`"${file.name}" is larger than 5 GB. Please choose a smaller file.`);
+        }
       }
 
+      setStatus('Uploading files (up to 5 GB each) and saving to Firebase...', 'loading');
+
+      const nowIso = new Date().toISOString();
       const personRef = database.ref(`${firebasePath}/${personKey}`);
       const newSubmissionRef = personRef.child('submissions').push();
+      const submissionKey = newSubmissionRef.key || `submission-${Date.now()}`;
+      const attachments = [];
+      for (const file of files) {
+        attachments.push(await uploadFileToStorage(file, personKey, submissionKey));
+      }
 
       await Promise.all([
         personRef.child('profile').set({ displayName, normalizedName: personKey }),
@@ -355,8 +377,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!firebaseConfig || typeof firebase === 'undefined' || !firebase.apps) {
       throw new Error('Firebase config is missing. Add your project details in firebase-config.js.');
     }
+    if (!firebase.storage) {
+      throw new Error('Firebase Storage SDK is missing. Add firebase-storage-compat script in index.html.');
+    }
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     database = firebase.database();
+    storage = firebase.storage();
   }
 
   try {
