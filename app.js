@@ -51,7 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let storage = null;
   let countdownTimer = null;
   let latestEntriesData = {};
-  let hasSubscribedEntries = false;
 
   function setText(el, value) {
     if (el) el.textContent = value;
@@ -133,20 +132,13 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateEntriesVisibility() {
     if (!els.entriesBoard || !els.entriesStatus || !els.entriesSection) return;
     if (!isOpen()) {
-      els.entriesSection.hidden = true;
-      els.entriesSection.style.display = 'none';
+      els.entriesSection.hidden = true
       els.entriesBoard.innerHTML = '';
-      els.entriesStatus.textContent = 'Submitted memories will appear once the vault is open.';
       return;
     }
 
     els.entriesSection.hidden = false;
-    els.entriesSection.style.display = '';
     els.entriesBoard.hidden = false;
-    if (!hasSubscribedEntries) {
-      subscribeEntries();
-      return;
-    }
     renderEntries(latestEntriesData);
   }
 
@@ -188,7 +180,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderEntries(data) {
     if (!els.entriesBoard || !els.entriesStatus) return;
-    if (!isOpen()) return;
 
     els.entriesBoard.innerHTML = '';
     const entries = Object.values(data || {});
@@ -269,16 +260,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function subscribeEntries() {
-    if (!database || !els.entriesStatus || hasSubscribedEntries) return;
-    hasSubscribedEntries = true;
+    if (!database || !els.entriesStatus) return;
     els.entriesStatus.textContent = 'Loading submissions from Firebase...';
 
     database.ref(firebasePath).on(
       'value',
       (snapshot) => {
-        latestEntriesData = snapshot.val() || {};
+        renderEntries(snapshot.val() || {});
         if (!isOpen()) updateEntriesVisibility();
-        else renderEntries(latestEntriesData);
       },
       (error) => {
         els.entriesStatus.textContent = `Failed to load submissions: ${error?.message || 'Unknown error'}`;
@@ -315,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function uploadFileToStorage(file, personKey, submissionKey) {
-    if (!storage) throw new Error('File uploads are temporarily unavailable (Firebase Storage SDK missing).');
+    if (!storage) throw new Error('Firebase Storage is not ready.');
     if (file.size > maxFileSizeBytes) {
       throw new Error(`"${file.name}" exceeds the 5 GB limit per file.`);
     }
@@ -352,9 +341,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const message = String(els.messageInput.value || '').trim();
       const files = Array.from(els.filesInput.files || []);
       if (!message) throw new Error('Please enter a short message before saving.');
-      if (files.length && !storage) {
-        throw new Error('File uploads are unavailable right now. Please submit without files or load the Storage SDK.');
-      }
       for (const file of files) {
         if (file.size > maxFileSizeBytes) {
           throw new Error(`"${file.name}" is larger than 5 GB. Please choose a smaller file.`);
@@ -391,9 +377,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!firebaseConfig || typeof firebase === 'undefined' || !firebase.apps) {
       throw new Error('Firebase config is missing. Add your project details in firebase-config.js.');
     }
+    if (!firebase.storage) {
+      throw new Error('Firebase Storage SDK is missing. Add firebase-storage-compat script in index.html.');
+    }
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     database = firebase.database();
-    storage = firebase.storage ? firebase.storage() : null;
+    storage = firebase.storage();
   }
 
   try {
