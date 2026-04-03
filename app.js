@@ -245,9 +245,8 @@ document.addEventListener('DOMContentLoaded', () => {
     database.ref(firebasePath).on(
       'value',
       (snapshot) => {
-        latestEntriesData = snapshot.val() || {};
+        renderEntries(snapshot.val() || {});
         if (!isOpen()) updateEntriesVisibility();
-        else renderEntries(latestEntriesData);
       },
       (error) => {
         els.entriesStatus.textContent = `Failed to load submissions: ${error?.message || 'Unknown error'}`;
