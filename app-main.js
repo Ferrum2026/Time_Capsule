@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const ui = config.ui || {};
 
   const revealDate = new Date(config.revealIso || Date.now());
-  const isForcedOpen = parseBoolean(config.forceOpenVault);
+  const isForcedOpen = true; // simple always-open mode
   const firebasePath = config.firebasePath || 'capsuleEntries';
   const maxFileSizeBytes = 5 * 1024 * 1024 * 1024; // 5 GB per file
   const namePattern = /^[A-Z][A-Z' -]*_[A-Z][A-Z' -]*_[A-Z](\.[A-Z])?\.?$/;
@@ -188,6 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderEntries(data) {
     if (!els.entriesBoard || !els.entriesStatus) return;
+    if (!isOpen()) return;
 
     els.entriesBoard.innerHTML = '';
     const entries = Object.values(data || {});
@@ -226,20 +227,19 @@ document.addEventListener('DOMContentLoaded', () => {
       title.textContent = person?.displayName || 'Unnamed participant';
       card.appendChild(title);
 
-      const submissions = Array.isArray(person?.submissions) ? person.submissions : person?.submissions || [];
-      const sortedSubmissions = Object.values(submissions).sort((a, b) => {
+      const submissions = Object.values(person?.submissions || {}).sort((a, b) => {
         const aTime = new Date(a?.createdAt || 0).getTime();
         const bTime = new Date(b?.createdAt || 0).getTime();
         return bTime - aTime;
       });
 
-      if (!sortedSubmissions.length) {
+      if (!submissions.length) {
         const empty = document.createElement('p');
         empty.textContent = 'No messages yet.';
         card.appendChild(empty);
       }
 
-      for (const submission of sortedSubmissions) {
+      for (const submission of submissions) {
         const block = document.createElement('div');
         block.className = 'entry-submission';
 
@@ -390,9 +390,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function initializeFirebase() {
     if (!firebaseConfig || typeof firebase === 'undefined' || !firebase.apps) {
       throw new Error('Firebase config is missing. Add your project details in firebase-config.js.');
-    }
-    if (!firebase.storage) {
-      throw new Error('Firebase Storage SDK is missing. Add firebase-storage-compat script in index.html.');
     }
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     database = firebase.database();
