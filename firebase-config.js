@@ -53,9 +53,8 @@ const appConfig = {
     heroImagePath: '',
     throwbackImagePath: '',
     // Paste your class Facebook page link for the "Our Memories" button.
-    // Use a full URL with https://
     // Example: 'https://www.facebook.com/YourBatchPage'
-    facebookPageUrl: '',
+    facebookPageUrl: 'https://www.facebook.com/profile.php?id=61583158778866',
     filmVideoPath: '',
     behindScenesVideoPath: ''
   }
