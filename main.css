@@ -177,18 +177,6 @@ body {
   background: #060b1d;
   border: 1px solid var(--line);
 }
-.transition-frame {
-  position: relative;
-  min-height: 300px;
-}
-.transition-image {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  transition: opacity 1.8s ease-in-out;
-}
-.transition-image.is-visible { opacity: 1; }
-
 .capsule-form { display: grid; gap: 12px; }
 .capsule-form label { display: grid; gap: 8px; font-weight: 700; }
 .capsule-form input, .capsule-form textarea {
@@ -370,10 +358,6 @@ body {
   .media-frame {
     min-height: 180px;
     max-height: 260px;
-  }
-
-  .transition-frame {
-    min-height: 200px;
   }
 
   .capsule-form input,
