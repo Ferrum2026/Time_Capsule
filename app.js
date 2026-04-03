@@ -40,14 +40,13 @@ document.addEventListener('DOMContentLoaded', () => {
   setSrc(els.siteLogo, ui.logoPath || 'assets/batch-logo-2026.svg');
   setVideoSource(els.filmVideo, ui.filmVideoPath);
   setVideoSource(els.btsVideo, ui.behindScenesVideoPath);
-  setLinkHref(els.memoriesLink, ui.facebookPageUrl || ui.memoriesPageUrl || '');
+  setLinkHref(els.memoriesLink, ui.facebookPageUrl || ui.memoriesPageUrl || '#');
 
   if (els.formLinkTop) els.formLinkTop.href = '#submission-form';
   if (els.revealDateLabel) els.revealDateLabel.textContent = `Reveal date: ${formatDate(revealDate)}`;
 
   let database = null;
   let countdownTimer = null;
-  let entriesRef = null;
 
   function setText(el, value) {
     if (el) el.textContent = value;
@@ -62,29 +61,9 @@ document.addEventListener('DOMContentLoaded', () => {
     video.src = path;
   }
 
-  function normalizeExternalUrl(rawUrl) {
-    const value = String(rawUrl || '').trim();
-    if (!value) return '';
-    if (/^https?:\/\//i.test(value)) return value;
-    if (/^(www\.)?facebook\.com\//i.test(value)) return `https://${value.replace(/^https?:\/\//i, '')}`;
-    if (/^www\./i.test(value)) return `https://${value}`;
-    return '';
-  }
-
   function setLinkHref(link, href) {
-    if (!link) return;
-    const normalizedUrl = normalizeExternalUrl(href);
-    if (!normalizedUrl) {
-      link.removeAttribute('href');
-      link.removeAttribute('target');
-      link.setAttribute('aria-disabled', 'true');
-      link.classList.add('is-disabled');
-      link.textContent = 'Facebook link not set yet';
-      return;
-    }
-    link.href = normalizedUrl;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
+    if (!link || !href) return;
+    link.href = href;
   }
 
   function formatDate(date) {
@@ -195,19 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return wrap;
   }
 
-  function looksLikePeopleMap(candidate) {
-    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
-    const items = Object.values(candidate);
-    if (!items.length) return false;
-    return items.some((item) => {
-      if (!item || typeof item !== 'object') return false;
-      if (item.submissions && typeof item.submissions === 'object') return true;
-      if (item.profile && typeof item.profile === 'object') return true;
-      return typeof item.displayName === 'string';
-    });
-  }
-
-  function renderEntries(data, sourceLabel) {
+  function renderEntries(data) {
     if (!els.entriesBoard || !els.entriesStatus) return;
     if (!isOpen()) return;
 
@@ -270,45 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
       els.entriesBoard.appendChild(card);
     }
 
-    const suffix = sourceLabel ? ` from ${sourceLabel}` : '';
-    els.entriesStatus.textContent = `Loaded ${sortedPeople.length} participant${sortedPeople.length === 1 ? '' : 's'}${suffix}.`;
-  }
-
-  function subscribeEntries() {
-    if (!database) return;
-    const candidatePaths = Array.from(new Set(
-      [firebasePath, 'capsuleEntries', 'entries', 'submissions']
-        .map((path) => String(path || '').trim())
-        .filter(Boolean)
-    ));
-
-    const trySubscribe = (index) => {
-      if (index >= candidatePaths.length) {
-        renderEntries({}, candidatePaths[0] || '');
-        return;
-      }
-
-      const path = candidatePaths[index];
-      const ref = database.ref(path);
-      ref.on('value', (snapshot) => {
-        const data = snapshot.val() || {};
-        const hasEntries = looksLikePeopleMap(data);
-        if (hasEntries) {
-          if (entriesRef && entriesRef !== ref) entriesRef.off();
-          entriesRef = ref;
-          renderEntries(data, path);
-          return;
-        }
-
-        ref.off();
-        trySubscribe(index + 1);
-      }, () => {
-        ref.off();
-        trySubscribe(index + 1);
-      });
-    };
-
-    trySubscribe(0);
+    els.entriesStatus.textContent = `Loaded ${sortedPeople.length} participant${sortedPeople.length === 1 ? '' : 's'}.`;
   }
 
   function normalizeName(rawValue) {
@@ -399,26 +328,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   try {
     initializeFirebase();
+    subscribeEntries();
   } catch (error) {
     setStatus(error.message || 'Firebase initialization failed.', 'error');
     if (els.entriesStatus) els.entriesStatus.textContent = error.message || 'Firebase initialization failed.';
   }
 
-  if (database) {
-    try {
-      subscribeEntries();
-    } catch (error) {
-      if (els.entriesStatus) els.entriesStatus.textContent = error.message || 'Failed to subscribe to entries.';
-    }
-  }
-
   updateCountdown();
-  updateEntriesVisibility();
   if (els.form) els.form.addEventListener('submit', handleFormSubmit);
 
   window.addEventListener('beforeunload', () => {
     if (countdownTimer) window.clearTimeout(countdownTimer);
-    if (entriesRef) entriesRef.off();
   });
 
   const fileButton = document.querySelector(".custom-file-button");
