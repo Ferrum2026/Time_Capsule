@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateEntriesVisibility() {
     if (!els.entriesBoard || !els.entriesStatus || !els.entriesSection) return;
     if (!isOpen()) {
-      els.entriesSection.hidden = true;
+      els.entriesSection.hidden = true
       els.entriesBoard.innerHTML = '';
       return;
     }
