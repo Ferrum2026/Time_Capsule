@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let database = null;
   let countdownTimer = null;
+  let latestEntriesData = {};
 
   function setText(el, value) {
     if (el) el.textContent = value;
@@ -133,9 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     els.entriesBoard.hidden = false;
-    if (!els.entriesBoard.children.length) {
-      els.entriesStatus.textContent = 'No submissions yet.';
-    }
+    renderEntries(latestEntriesData);
   }
 
   function createAttachmentNode(attachment) {
@@ -176,7 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderEntries(data) {
     if (!els.entriesBoard || !els.entriesStatus) return;
-    if (!isOpen()) return;
 
     els.entriesBoard.innerHTML = '';
     const people = Object.values(data || {});
