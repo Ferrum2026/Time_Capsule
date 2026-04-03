@@ -177,17 +177,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!els.entriesBoard || !els.entriesStatus) return;
 
     els.entriesBoard.innerHTML = '';
-    const people = Object.values(data || {});
-    if (!people.length) {
+    const entries = Object.values(data || {});
+    if (!entries.length) {
       els.entriesStatus.textContent = 'No submissions yet.';
       return;
     }
 
-    const sortedPeople = people.sort((a, b) => {
-      const aTime = new Date(a?.updatedAt || 0).getTime();
-      const bTime = new Date(b?.updatedAt || 0).getTime();
-      return bTime - aTime;
-    });
+    const groupedByName = new Map();
+    for (const person of entries) {
+      const displayName = String(
+        person?.displayName ||
+        person?.profile?.displayName ||
+        'Unnamed participant'
+      ).trim();
+      const groupingKey = displayName.toUpperCase();
+
+      if (!groupedByName.has(groupingKey)) {
+        groupedByName.set(groupingKey, { displayName, submissions: [] });
+      }
+
+      const group = groupedByName.get(groupingKey);
+      const submissions = Object.values(person?.submissions || {});
+      group.submissions.push(...submissions);
+    }
+
+    const sortedPeople = Array.from(groupedByName.values()).sort((a, b) =>
+      a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' })
+    );
 
     for (const person of sortedPeople) {
       const card = document.createElement('article');
