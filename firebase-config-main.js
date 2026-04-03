@@ -20,7 +20,7 @@ const appConfig = {
   // 1) TIMER: change this date/time to control vault opening.
   // Example: '2027-12-31T23:59:59'
   // 👇 EDIT THIS LINE
-  revealIso: '2027-12-31T23:59:59',
+  revealIso: '2030-04-03T23:59:59',
 
   // 2) FORCE OPEN: set true to open vault immediately for testing.
   // 👇 EDIT THIS LINE
