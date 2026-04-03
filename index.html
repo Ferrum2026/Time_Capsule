@@ -57,13 +57,10 @@
         <video id="bts-video" class="media-frame" controls autoplay muted loop playsinline></video>
       </article>-->
 
-      <article class="pin-card media-card transition-card">
-        <!-- <span class="pin-label">Photo Transition</span> -->
+      <article class="pin-card media-card">
         <h3 class="section-title">• Our Memories •</h3>
-        <div class="transition-frame">
-          <img id="day1-image" class="media-frame transition-image is-visible" src="assets/batch-banner-2026.svg" alt="Day 1 memory" />
-          <img id="lastday-image" class="media-frame transition-image" src="assets/batch-banner-2026.svg" alt="Last day memory" />
-        </div>
+        <p>Want to revisit our memories? Check our Facebook page.</p>
+        <a id="memories-link" class="button primary" href="#" target="_blank" rel="noopener noreferrer">Open Facebook Page</a>
       </article>
 
       <article class="pin-card form-card submit-card" id="submission-form">
@@ -88,6 +85,12 @@
           <p id="form-status" class="form-status" aria-live="polite"></p>
         </form>
       </article>
+
+      <article class="pin-card entries-card" id="entries-section">
+        <h3 class="section-title">• Submitted Memories •</h3>
+        <p id="entries-status" class="entries-status">Loading submissions...</p>
+        <div id="entries-board" class="entries-board"></div>
+      </article>
     </section>
   </main>
 
@@ -99,6 +102,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <script src="firebase-config.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260403"></script>
 </body>
 </html>
