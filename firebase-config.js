@@ -24,7 +24,7 @@ const appConfig = {
 
   // 2) FORCE OPEN: set true to open vault immediately for testing.
   // 👇 EDIT THIS LINE
-  forceOpenVault: false,
+  forceOpenVault: true,
   // =========================================================
 
   // 3) Firebase path where the website stores entries.
@@ -52,6 +52,10 @@ const appConfig = {
     logoPath: 'media/BATCH FERRUM LOGO.png',
     heroImagePath: '',
     throwbackImagePath: '',
+    // Paste your class Facebook page link for the "Our Memories" button.
+    // Use a full URL with https://
+    // Example: 'https://www.facebook.com/YourBatchPage'
+    facebookPageUrl: '',
     filmVideoPath: '',
     behindScenesVideoPath: ''
   }
